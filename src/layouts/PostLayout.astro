@@ -91,7 +91,7 @@ function pctColor(pct: number) {
                     <div class="useful-track">
                       <div
                         class="useful-fill"
-                        style={`--w: ${u.pct}%; background: ${pctColor(u.pct)};`}
+                        style={`--w: ${u.pct}%; --fill-width: ${u.pct}%; background: ${pctColor(u.pct)};`}
                       ></div>
                     </div>
                     <span class="useful-pct" style={`color: ${pctColor(u.pct)}`}>{u.pct}%</span>

@@ -74,6 +74,8 @@ ICMP no tiene puertos — cada mensaje se identifica por **Type** y **Code**. Lo
   - Si no llega respuesta → timeout (host down o ICMP bloqueado)
 </Step>
 
+<img src="/images/icmp/ping-request-reply.png" alt="Diagrama ping: ICMP Echo Request (Type 8) de origen a destino y Echo Reply (Type 0) de vuelta, con el RTT total de 24ms" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 ### Captura real en Wireshark
 
 ```
@@ -139,6 +141,8 @@ El campo **TTL (Time-to-Live)** del header IP indica cuántos routers puede atra
 | 2 | TTL=2 | Router 2 | ICMP Time Exceeded → sabemos la IP del router 2 |
 | 3 | TTL=3 | Router 3 | ICMP Time Exceeded → ... |
 | N | TTL=N | Destino | Echo Reply → llegamos |
+
+<img src="/images/icmp/traceroute-ttl.png" alt="Diagrama traceroute: TTL=1 genera Time Exceeded en Router 1, TTL=2 en Router 2, TTL=3 llega al destino con Echo Reply" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 ### Output real
 

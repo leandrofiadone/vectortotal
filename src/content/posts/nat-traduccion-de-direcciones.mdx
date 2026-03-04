@@ -45,6 +45,8 @@ El estándar RFC 1918 reservó tres rangos de IPs exclusivamente para redes priv
 
 Cualquier empresa, hogar o laboratorio puede usar estos rangos libremente sin coordinar con nadie. El truco: al salir a Internet, NAT reemplaza esas IPs privadas por la IP pública del router.
 
+<img src="/images/nat/red-privada-publica.png" alt="Red local privada con múltiples dispositivos (192.168.1.x) conectados a Internet a través de un único Router/NAT Gateway con IP pública 203.0.113.5" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 ---
 
 ## 🔄 Cómo funciona NAT (PAT)
@@ -76,6 +78,8 @@ Red interna (privada)           Router NAT                Internet
 | `192.168.0.112`, 38192 | `212.3.4.5`, 41251 |
 
 El servidor en Internet solo ve `212.3.4.5` — nunca sabe que hay tres dispositivos distintos detrás.
+
+<img src="/images/nat/pat-traduccion.png" alt="SNAT/PAT: tres dispositivos con IPs privadas (192.168.1.10, .11, .12) salen hacia Internet como una única IP pública 203.0.113.5 en puertos distintos" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 ---
 
@@ -148,6 +152,8 @@ Variante de Static NAT a nivel de puerto: un puerto específico de la IP públic
 212.3.4.5:22  →  192.168.0.10:22   (SSH al servidor interno)
 212.3.4.5:80  →  192.168.0.20:80   (web server interno)
 ```
+
+<img src="/images/nat/port-forwarding.png" alt="Port Forwarding (DNAT): un usuario externo conecta a 203.0.113.5:80 y el router redirige la conexión al servidor web interno en 192.168.1.100:80" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 <Callout type="tip">
   El port forwarding es lo que hacés en tu router para hospedar un servidor desde casa. En pentesting, encontrar un puerto forwarded en un firewall es acceso directo a un host interno.

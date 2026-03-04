@@ -64,6 +64,8 @@ default via 192.168.66.1 dev eth0
   El router usa la regla del **longest prefix match**: elige la ruta más específica que matchee la IP destino. `192.168.66.89` matchea tanto `192.168.66.0/24` como `0.0.0.0/0`, pero gana el `/24` por ser más específico.
 </Callout>
 
+<img src="/images/routing/longest-prefix-match.png" alt="Longest Prefix Match: destino 192.168.66.89 en un Router Logic Node elige la ruta 192.168.66.0/24 (más específica) sobre la ruta default 0.0.0.0/0" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 ---
 
 ## 🔄 Cómo viaja un paquete hop a hop
@@ -208,6 +210,8 @@ ip route add 10.10.10.0/24 via <IP_del_host_comprometido>
 
 # O con proxychains / chisel para tunneling sin root
 ```
+
+<img src="/images/routing/pivoting-route.png" alt="Túnel de enrutamiento con ip route add: el atacante usa un servidor comprometido como pivot para alcanzar la red interna protegida" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 **Identificar segmentación de red:**
 

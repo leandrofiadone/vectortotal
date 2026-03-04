@@ -43,6 +43,8 @@ Para funcionar en cualquier red necesitás mínimo tres cosas:
 
 Podés configurarlos a mano — y en **servidores lo hacés**, porque no cambian de red. Pero en dispositivos móviles sería un caos: cada red tiene su propio rango de IPs, y si dos dispositivos quedan con la misma IP se produce un **conflicto** y ninguno funciona.
 
+<img src="/images/dhcp/sin-con-dhcp.png" alt="Comparación sin DHCP (conflictos de IP) vs con DHCP (asignación automática)" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 DHCP resuelve esto asignando toda esa configuración de forma automática cada vez que alguien se conecta.
 
 ---
@@ -82,6 +84,8 @@ Cuando tu dispositivo se conecta a una red, DHCP ejecuta cuatro pasos en secuenc
   - Antes de que venza, el cliente negocia la renovación automáticamente
 </Step>
 
+<img src="/images/dhcp/dora.png" alt="Diagrama del proceso DORA: Discover (broadcast), Offer, Request (broadcast), ACK" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 <Callout type="tip">
   Podés ver el lease time activo en Linux con `ip a` o `dhclient -v`. En Windows con `ipconfig /all` aparece como "Lease Obtained" y "Lease Expires".
 </Callout>
@@ -109,6 +113,8 @@ Puntos clave de esta captura:
 - **Paquetes 2 y 4** van directo a `192.168.66.133` — el servidor ya conoce al cliente por su MAC.
 - El **Transaction ID `0xfb92d53f`** es idéntico en los cuatro paquetes — así el cliente y el servidor saben que pertenecen al mismo intercambio.
 
+<img src="/images/dhcp/wireshark.png" alt="Captura Wireshark mostrando los 4 paquetes DORA con anotaciones sobre broadcast, Transaction ID y oferta única" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 <Callout type="info">
   En Discover y Request, a nivel de capa 2 (Ethernet), el cliente usa `ff:ff:ff:ff:ff:ff` como MAC de destino — el broadcast de Ethernet que reciben todos los dispositivos de la red local.
 </Callout>
@@ -135,6 +141,8 @@ Puntos clave de esta captura:
 **DHCP Starvation** — El atacante solicita miles de IPs hasta agotar el pool del servidor. Los dispositivos legítimos ya no pueden obtener configuración.
 
 **Rogue DHCP Server** — El atacante levanta su propio servidor DHCP y responde *antes* que el legítimo. Le asigna a las víctimas un **gateway falso** — MITM clásico sin que nadie lo note.
+
+<img src="/images/dhcp/rogue-dhcp.png" alt="Esquema de ataque Rogue DHCP: la víctima recibe configuración falsa del atacante logrando MITM" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 **DHCP Snooping** — La contramedida implementada en switches gestionados: filtra respuestas DHCP y solo permite las que vienen de puertos autorizados.
 

@@ -77,6 +77,8 @@ El escenario: el host `192.168.66.89` quiere comunicarse con `192.168.66.1` (el 
   - A partir de acá pueden intercambiar frames Ethernet directamente
 </Step>
 
+<img src="/images/arp/arp-request-reply.png" alt="Diagrama ARP Request (broadcast a toda la red) y ARP Reply (unicast de vuelta al origen), con las tablas ARP en ambos extremos" style="border-radius: 4px; margin: 1.5rem 0;" />
+
 ---
 
 ## 🔬 Captura real con tshark y tcpdump
@@ -143,6 +145,8 @@ arp -a
 ARP tiene un problema de diseño: **no tiene autenticación**. Cualquier dispositivo puede mandar un ARP Reply sin que nadie lo haya preguntado — y los demás dispositivos lo aceptan y actualizan su caché.
 
 **ARP Spoofing / ARP Poisoning** — El atacante envía ARP Replies falsos asociando su propia MAC con la IP del gateway. Las víctimas actualizan su caché y empiezan a enviar todo el tráfico al atacante → **Man-in-the-Middle clásico**.
+
+<img src="/images/arp/arp-poisoning.png" alt="Esquema de ARP Poisoning: el atacante envenena la caché ARP de la víctima y el router para interceptar todo el tráfico (MITM)" style="border-radius: 4px; margin: 1.5rem 0;" />
 
 ```bash
 # Con arpspoof (dsniff)
