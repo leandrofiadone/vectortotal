@@ -28,7 +28,7 @@ const seriesEntries = Object.entries(SERIES);
     <ul class="series-list">
       {seriesEntries.map(([key, meta]) => (
         <li class="series-item">
-          <a href="/salas" class="series-link">
+          <a href={`/salas/${key}`} class="series-link">
             <span class="series-icon">{meta.icon}</span>
             <span class="series-name">{meta.title}</span>
           </a>
@@ -43,13 +43,13 @@ const seriesEntries = Object.entries(SERIES);
     <ul class="cat-list">
       {categories.map(([cat, count]) => (
         <li class="cat-item">
-          <span class="cat-link">
+          <a href={`/tags/${cat}`} class="cat-link">
             <span
               class="cat-dot"
               style={`background: ${categoryColors[cat] || 'var(--accent)'}`}
             ></span>
             <span class="cat-name">{cat}</span>
-          </span>
+          </a>
           <span class="cat-count">{count}</span>
         </li>
       ))}
@@ -142,6 +142,12 @@ const seriesEntries = Object.entries(SERIES);
     padding: 4px 6px;
     border-radius: 3px;
     flex: 1;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .cat-link:hover {
+    color: var(--text-bright);
   }
 
   .cat-dot {

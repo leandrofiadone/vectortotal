@@ -4,8 +4,12 @@ interface Props {
 }
 
 const { name } = Astro.props;
-
 const tagClass = `tag-${name.toLowerCase()}`;
+const href = `/tags/${name.toLowerCase()}`;
 ---
 
-<span class:list={['tag', tagClass]}>{name}</span>
+<a href={href} class:list={['tag', tagClass]}>{name}</a>
+
+<style>
+  .tag { text-decoration: none; }
+</style>

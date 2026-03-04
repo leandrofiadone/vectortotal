@@ -47,6 +47,16 @@ const terminalLines = [
 ];
 
 const totalCategories = Object.keys(categoryCounts).length;
+
+function readingTime(body: string): number {
+  const text = body
+    .replace(/^---[\s\S]*?---/, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]+`/g, ' ');
+  const words = text.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 200));
+}
 ---
 
 <BaseLayout title="vectortotal">
@@ -118,6 +128,7 @@ const totalCategories = Object.keys(categoryCounts).length;
                   slug={post.slug}
                   series={seriesKey}
                   num={i + 1}
+                  readingTime={readingTime(post.body)}
                 />
               ))}
             </div>
@@ -133,6 +144,7 @@ const totalCategories = Object.keys(categoryCounts).length;
           slug={post.slug}
           series={post.data.series}
           num={i + 1}
+          readingTime={readingTime(post.body)}
         />
       ))}
       {allPosts.length === 0 && (
