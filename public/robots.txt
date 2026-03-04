@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vectortotal.vercel.app/sitemap-index.xml
+Sitemap: https://0xleandro-blog.vercel.app/sitemap-index.xml
