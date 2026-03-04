@@ -47,7 +47,11 @@ function pctColor(pct: number) {
 }
 ---
 
-<BaseLayout title={title} description={excerpt}>
+<BaseLayout
+  title={title}
+  description={excerpt}
+  article={{ publishedTime: date.toISOString(), tags }}
+>
   <div class="reading-progress" id="readingProgress"></div>
 
   <div class="container post-container">

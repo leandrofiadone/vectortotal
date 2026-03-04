@@ -4,7 +4,7 @@ import mdx from '@astrojs/mdx';
 import sitemap from '@astrojs/sitemap';
 
 export default defineConfig({
-  site: 'https://0xleandro.dev',
+  site: 'https://vectortotal.vercel.app',
   integrations: [mdx(), sitemap()],
   markdown: {
     shikiConfig: {
