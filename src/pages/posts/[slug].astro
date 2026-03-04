@@ -1,0 +1,16 @@
+---
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', p => !p.data.draft && !!p.data.series);
+  return posts.map(post => ({
+    params: { slug: post.slug },
+    props: { series: post.data.series! },
+  }));
+}
+
+const { series } = Astro.props;
+const { slug } = Astro.params;
+
+return Astro.redirect(`/salas/${series}/${slug}`, 301);
+---

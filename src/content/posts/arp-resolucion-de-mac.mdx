@@ -1,0 +1,182 @@
+---
+title: "ARP: cómo se resuelven IPs a direcciones MAC"
+date: 2026-03-04
+excerpt: "IP te dice dónde llegar, MAC te dice cómo llegar. ARP es el puente entre ambas. Acá vemos cómo funciona, cómo se ve en Wireshark y por qué importa en pentesting."
+tags: ["net", "fundamentos"]
+series: network-essentials
+usefulFor:
+  - { area: "fundamentos de red", pct: 100 }
+  - { area: "análisis de tráfico", pct: 85 }
+  - { area: "pentesting", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Cuando vimos DHCP, tu dispositivo recibió una IP, un gateway y un DNS. Ahora sabe *a dónde* tiene que enviar los paquetes. Pero hay un problema: Ethernet no trabaja con IPs — trabaja con **direcciones MAC**. Para armar el frame de capa 2, necesita saber la MAC del destino. Ahí entra ARP.
+
+<ProtoCard
+  name="ARP"
+  description="Address Resolution Protocol — traduce direcciones IP (capa 3) a direcciones MAC (capa 2). Permite que dos dispositivos en la misma red Ethernet se encuentren a nivel físico."
+  layer="Enlace (L2 / L3)"
+  facts={[
+    { label: "Encapsulación",   value: "Ethernet directa", highlight: true },
+    { label: "No usa",          value: "UDP / IP"                          },
+    { label: "EtherType",       value: "0x0806",           highlight: true },
+    { label: "Request",         value: "Broadcast"                         },
+    { label: "Reply",           value: "Unicast"                           },
+    { label: "RFC",             value: "826"                               },
+  ]}
+/>
+
+---
+
+## 🖼️ El frame Ethernet y por qué necesitamos MAC
+
+Cuando un paquete IP viaja por una red local, va **dentro de un frame Ethernet**. Ese frame tiene un header que contiene:
+
+- **MAC destino** — la dirección física del próximo salto
+- **MAC origen** — tu dirección física
+- **EtherType** — qué protocolo lleva adentro (`0x0800` para IPv4, `0x0806` para ARP)
+
+```
+Frame Ethernet:
+┌──────────────────┬──────────────────┬──────────┬─────────────────┐
+│  MAC destino (6) │  MAC origen (6)  │ Type (2) │   Payload       │
+│  5a:33:09:6f:... │  44:df:65:d8:... │  0x0800  │   IP packet...  │
+└──────────────────┴──────────────────┴──────────┴─────────────────┘
+```
+
+El dispositivo conoce la IP del destino (se la dio el sistema operativo o el DNS), pero **no sabe su MAC**. Los dispositivos en la misma Ethernet no necesitan conocer las MACs de todos todo el tiempo — solo cuando van a comunicarse. ARP resuelve esa MAC en el momento exacto que se necesita.
+
+<Callout type="info">
+  Una MAC es una dirección de 48 bits, típicamente en hexadecimal: `7C:DF:A1:D3:8C:5C`. Los primeros 3 bytes identifican al fabricante (OUI), los últimos 3 son únicos del dispositivo.
+</Callout>
+
+---
+
+## 🔄 Cómo funciona ARP
+
+El escenario: el host `192.168.66.89` quiere comunicarse con `192.168.66.1` (el gateway), pero no sabe su MAC.
+
+<Step n={1} title="ARP Request" label="broadcast">
+  El host manda un **broadcast** a toda la red: *"¿Quién tiene la IP `192.168.66.1`? Que me responda `192.168.66.89`."*
+
+  - **MAC destino:** `ff:ff:ff:ff:ff:ff` — todos los dispositivos de la red lo reciben
+  - **IP destino:** no hay — ARP va directo en el frame Ethernet, sin IP header
+  - Todos los dispositivos reciben el mensaje, pero solo el que tiene esa IP responde
+</Step>
+
+<Step n={2} title="ARP Reply" label="unicast" last={true}>
+  El host con IP `192.168.66.1` responde **directamente** al solicitante: *"Soy yo, mi MAC es `44:df:65:d8:fe:6c`."*
+
+  - **MAC destino:** la MAC del solicitante (unicast, no broadcast)
+  - El solicitante guarda esta asociación en su **ARP table** para no tener que preguntar de nuevo
+  - A partir de acá pueden intercambiar frames Ethernet directamente
+</Step>
+
+---
+
+## 🔬 Captura real con tshark y tcpdump
+
+```bash
+tshark -r arp.pcapng -Nn
+```
+
+```
+1  0.000000000  cc:5e:f8:02:21:a7 → ff:ff:ff:ff:ff:ff  ARP 42  Who has 192.168.66.1? Tell 192.168.66.89
+2  0.003566632  44:df:65:d8:fe:6c → cc:5e:f8:02:21:a7  ARP 42  192.168.66.1 is at 44:df:65:d8:fe:6c
+```
+
+El mismo intercambio con `tcpdump` usa otra terminología pero muestra lo mismo:
+
+```bash
+tcpdump -r arp.pcapng -n -v
+```
+
+```
+17:23:44.506615  ARP, Ethernet (len 6), IPv4 (len 4), Request  who-has 192.168.66.1 tell 192.168.66.89, length 28
+17:23:44.510182  ARP, Ethernet (len 6), IPv4 (len 4), Reply    192.168.66.1 is-at 44:df:65:d8:fe:6c, length 28
+```
+
+Puntos clave de la captura:
+
+- El **Request** sale de `cc:5e:f8:02:21:a7` (el cliente) hacia `ff:ff:ff:ff:ff:ff` (broadcast)
+- El **Reply** va de `44:df:65:d8:fe:6c` (el gateway) directamente hacia `cc:5e:f8:02:21:a7` (unicast)
+- Ambos paquetes pesan **42 bytes** — ARP es un protocolo muy liviano
+- **No hay IP header** — ARP está encapsulado directamente en el frame Ethernet
+
+<Callout type="info">
+  ARP se considera capa 2 porque trabaja con MACs y está encapsulado en Ethernet. Sin embargo, algunos lo clasifican en capa 3 porque su función es dar soporte a operaciones IP. Lo importante: **ARP traduce de capa 3 a capa 2**.
+</Callout>
+
+---
+
+## 📋 La ARP table
+
+Cada vez que un dispositivo resuelve una MAC, la guarda en su **ARP table** (caché ARP) para evitar broadcasts innecesarios. Las entradas expiran después de un tiempo.
+
+```bash
+# Ver la ARP table (Linux)
+arp -n
+# o
+ip neigh show
+```
+
+```
+Address          HWtype  HWaddress           Flags Mask
+192.168.66.1     ether   44:df:65:d8:fe:6c   C
+192.168.66.100   ether   cc:5e:f8:02:21:a7   C
+```
+
+```powershell
+# Windows
+arp -a
+```
+
+---
+
+## 🔒 Relevancia en pentesting
+
+ARP tiene un problema de diseño: **no tiene autenticación**. Cualquier dispositivo puede mandar un ARP Reply sin que nadie lo haya preguntado — y los demás dispositivos lo aceptan y actualizan su caché.
+
+**ARP Spoofing / ARP Poisoning** — El atacante envía ARP Replies falsos asociando su propia MAC con la IP del gateway. Las víctimas actualizan su caché y empiezan a enviar todo el tráfico al atacante → **Man-in-the-Middle clásico**.
+
+```bash
+# Con arpspoof (dsniff)
+arpspoof -i eth0 -t 192.168.66.89 192.168.66.1   # decirle a la víctima que el gateway es el atacante
+arpspoof -i eth0 -t 192.168.66.1  192.168.66.89  # decirle al gateway que la víctima es el atacante
+```
+
+**Contramedidas:**
+- **DAI (Dynamic ARP Inspection)** en switches gestionados — valida ARP contra la tabla DHCP Snooping
+- **ARP estático** en entornos críticos — entradas fijas que no se sobreescriben
+- **Detección** — Wireshark alerta con "Duplicate IP address" cuando ve ARP Replies conflictivos
+
+<Callout type="warning">
+  ARP Spoofing en una red sin DAI es trivial y muy efectivo. En CTFs de red y en pentesting de LAN es una técnica fundamental. Siempre con autorización explícita.
+</Callout>
+
+---
+
+## 🛠️ Comandos de referencia
+
+```bash
+# Ver ARP table
+arp -n
+ip neigh show
+
+# Limpiar toda la caché ARP (Linux)
+ip neigh flush all
+
+# Mandar ARP Request manualmente (arping)
+arping -I eth0 192.168.66.1
+
+# Capturar tráfico ARP en tiempo real
+tcpdump -i eth0 arp -n
+
+# Filtro en Wireshark
+arp
+```

@@ -1,0 +1,153 @@
+---
+import { SERIES } from '../data/series';
+
+interface PostItem {
+  slug: string;
+  data: { title: string; date: Date };
+}
+
+interface Props {
+  series: string;
+  posts: PostItem[];
+  currentSlug: string;
+}
+
+const { series, posts, currentSlug } = Astro.props;
+const meta = SERIES[series];
+const sorted = [...posts].sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+---
+
+<div class="series-nav">
+  <a href={`/salas/${series}`} class="series-header">
+    <span class="series-icon">{meta?.icon ?? '📚'}</span>
+    <div class="series-title-wrap">
+      <span class="series-label">área</span>
+      <span class="series-title">{meta?.title ?? series}</span>
+    </div>
+    <span class="series-arrow">↗</span>
+  </a>
+  <ol class="series-list">
+    {sorted.map((post, i) => (
+      <li class:list={['series-item', post.slug === currentSlug && 'current']}>
+        <a href={`/salas/${series}/${post.slug}`} class="series-link">
+          <span class="series-num">{String(i + 1).padStart(2, '0')}</span>
+          <span class="series-post-title">{post.data.title}</span>
+        </a>
+      </li>
+    ))}
+  </ol>
+</div>
+
+<style>
+  .series-nav {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .series-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .series-header:hover { opacity: 0.8; }
+
+  .series-arrow {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-left: auto;
+    transition: color 0.2s;
+  }
+
+  .series-header:hover .series-arrow { color: var(--accent); }
+
+  .series-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  .series-title-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .series-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+  }
+
+  .series-title {
+    font-family: var(--display);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+
+  .series-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    counter-reset: none;
+  }
+
+  .series-item {}
+
+  .series-link {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+
+  .series-link:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .series-num {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+
+  .series-post-title {
+    font-family: var(--body);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    transition: color 0.15s;
+  }
+
+  .series-link:hover .series-post-title {
+    color: var(--accent);
+  }
+
+  .series-item.current .series-link {
+    background: rgba(0, 229, 255, 0.06);
+  }
+
+  .series-item.current .series-num {
+    color: var(--accent);
+  }
+
+  .series-item.current .series-post-title {
+    color: var(--text-bright);
+    font-weight: 600;
+  }
+</style>

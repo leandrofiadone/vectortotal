@@ -1,0 +1,248 @@
+---
+title: "ICMP: ping, traceroute y diagnóstico de red"
+date: 2026-03-04
+excerpt: "ICMP es el protocolo que le permite a la red reportar errores y diagnosticar conectividad. Acá vemos cómo funciona internamente, qué hacen ping y traceroute, y por qué importa en seguridad."
+tags: ["net", "fundamentos"]
+series: network-essentials
+usefulFor:
+  - { area: "fundamentos de red", pct: 90 }
+  - { area: "análisis de tráfico", pct: 80 }
+  - { area: "pentesting", pct: 65 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Hasta ahora vimos cómo los dispositivos obtienen IP (DHCP) y cómo resuelven MACs (ARP). Pero ¿cómo sabe tu sistema si un host está vivo? ¿Cómo descubrís la ruta que toman tus paquetes hacia un servidor? Para eso existe ICMP.
+
+<ProtoCard
+  name="ICMP"
+  description="Internet Control Message Protocol — protocolo de control y diagnóstico de la capa de red. No transporta datos de usuario: solo mensajes de error e información de estado. Es la herramienta de diagnóstico del ecosistema IP."
+  layer="Red (L3)"
+  facts={[
+    { label: "Encapsulación",   value: "IP directa",      highlight: true },
+    { label: "No usa",          value: "TCP / UDP"                        },
+    { label: "Protocolo IP",    value: "1",                highlight: true },
+    { label: "RFC",             value: "792"                              },
+    { label: "Echo Request",    value: "Type 8",           highlight: true },
+    { label: "Echo Reply",      value: "Type 0",           highlight: true },
+    { label: "Time Exceeded",   value: "Type 11",          highlight: true },
+  ]}
+/>
+
+---
+
+## 📋 Tipos de mensajes ICMP
+
+ICMP no tiene puertos — cada mensaje se identifica por **Type** y **Code**. Los más relevantes:
+
+| Type | Code | Nombre | Usado por |
+|------|------|--------|-----------|
+| **0** | 0 | Echo Reply | `ping` (respuesta) |
+| **3** | 0–15 | Destination Unreachable | Error de enrutamiento |
+| **8** | 0 | Echo Request | `ping` (solicitud) |
+| **11** | 0 | Time Exceeded | `traceroute` |
+| **12** | 0 | Parameter Problem | Encabezado IP malformado |
+
+<Callout type="info">
+  ICMP va encapsulado **directamente en IP**, sin capa de transporte. Por eso no tiene números de puerto. Un firewall que bloquea ICMP lo hace filtrando el protocolo IP número 1.
+</Callout>
+
+---
+
+## 🏓 Ping — Echo Request / Echo Reply
+
+`ping` envía un **ICMP Echo Request (Type 8)** al destino y espera un **Echo Reply (Type 0)**. Con la diferencia de tiempo entre ambos calcula el **RTT (round-trip time)**.
+
+<Step n={1} title="Echo Request" label="Type 8">
+  Tu sistema envía el mensaje de solicitud al destino.
+
+  - **Type:** `8` — Echo (ping) request
+  - **Code:** `0`
+  - **Identifier:** identifica la sesión de ping (ej: `0x0003`)
+  - **Sequence Number:** incrementa en cada paquete para ordenarlos
+  - Va dentro de un paquete IP normal, con TTL incluido
+</Step>
+
+<Step n={2} title="Echo Reply" label="Type 0" last={true}>
+  El destino responde con los mismos Identifier y Sequence Number.
+
+  - **Type:** `0` — Echo reply
+  - El sistema calcula `tiempo_llegada - tiempo_envío` = **RTT**
+  - Si no llega respuesta → timeout (host down o ICMP bloqueado)
+</Step>
+
+### Captura real en Wireshark
+
+```
+Frame 1: Echo Request
+  IP   Src: 192.168.66.89  →  Dst: 192.168.11.1
+  ICMP Type: 8 (Echo ping request)  Code: 0
+       Checksum: 0x7288 [correct]
+       Identifier: 3 (0x0003)
+       Sequence Number: 1 (0x0001)
+
+Frame 2: Echo Reply
+  IP   Src: 192.168.11.1  →  Dst: 192.168.66.89
+  ICMP Type: 0 (Echo ping reply)  Code: 0
+       [Response time: 23.903 ms]
+       Identifier: 3 (0x0003)
+       Sequence Number: 1 (0x0001)
+```
+
+Ambos frames pesan **98 bytes** — 14 de Ethernet + 20 de IP + 8 de ICMP header + 40 de datos de padding.
+
+### Output en terminal
+
+```bash
+ping 192.168.11.1 -c 4
+```
+
+```
+PING 192.168.11.1 56(84) bytes of data.
+64 bytes from 192.168.11.1: icmp_seq=1 ttl=63 time=11.2 ms
+64 bytes from 192.168.11.1: icmp_seq=2 ttl=63 time=3.81 ms
+64 bytes from 192.168.11.1: icmp_seq=3 ttl=63 time=3.99 ms
+64 bytes from 192.168.11.1: icmp_seq=4 ttl=63 time=23.4 ms
+
+--- 192.168.11.1 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3003ms
+rtt min/avg/max/mdev = 3.805/10.596/23.366/7.956 ms
+```
+
+- **`ttl=63`** — el destino arrancó con TTL 64 y lo decrementó un salto
+- **`time`** — el RTT de cada paquete
+- **`mdev`** — desviación media (jitter). Alto = conexión inestable
+- **`0% packet loss`** — todos los paquetes llegaron y respondieron
+
+<Callout type="tip">
+  Si `ping` no responde pero el host está vivo, probablemente hay un firewall bloqueando ICMP. En pentesting, la ausencia de respuesta ICMP no confirma que el host esté caído — solo que ICMP está filtrado.
+</Callout>
+
+---
+
+## 🗺️ Traceroute — descubriendo la ruta
+
+`traceroute` (Linux) o `tracert` (Windows) usa ICMP junto con el campo **TTL** del header IP para revelar cada router entre tu sistema y el destino.
+
+### El mecanismo del TTL
+
+El campo **TTL (Time-to-Live)** del header IP indica cuántos routers puede atravesar el paquete antes de ser descartado. **Cada router decrementa el TTL en 1**. Cuando llega a 0, el router descarta el paquete y responde con un **ICMP Time Exceeded (Type 11)**.
+
+`traceroute` explota esto mandando paquetes con TTL incremental:
+
+| Intento | TTL enviado | Quién responde | Resultado |
+|---------|-------------|----------------|-----------|
+| 1 | TTL=1 | Router 1 (se queda sin TTL) | ICMP Time Exceeded → sabemos la IP del router 1 |
+| 2 | TTL=2 | Router 2 | ICMP Time Exceeded → sabemos la IP del router 2 |
+| 3 | TTL=3 | Router 3 | ICMP Time Exceeded → ... |
+| N | TTL=N | Destino | Echo Reply → llegamos |
+
+### Output real
+
+```bash
+traceroute example.com
+```
+
+```
+traceroute to example.com (93.184.215.14), 30 hops max, 60 byte packets
+ 1  _gateway (192.168.66.1)      4.414 ms   4.342 ms   4.320 ms
+ 2  192.168.11.1 (192.168.11.1)  5.849 ms   5.830 ms   5.811 ms
+ 3  100.104.0.1  (100.104.0.1)  11.130 ms  11.111 ms  11.093 ms
+ 4  10.149.1.45  (10.149.1.45)   6.156 ms   6.138 ms   6.120 ms
+ 5  * * *
+ 6  * * *
+ 7  * * *
+ 8  172.16.48.1  (172.16.48.1)   5.667 ms   8.165 ms   6.861 ms
+ 9  ae81.edge4.Marseille1.Level3.net (212.73.201.45)  50.811 ms
+...
+17  93.184.215.14 (93.184.215.14) 140.488 ms 139.397 ms 141.854 ms
+```
+
+Puntos clave del output:
+
+- **Tres tiempos por hop** — traceroute manda 3 paquetes por salto para promediar el RTT
+- **`* * *`** — ese router no responde ICMP (firewall, configuración del ISP). El hop existe, pero se oculta
+- **IPs privadas** (10.x, 192.168.x, 172.16.x) — routers internos del ISP revelando su topología privada
+- **Salto al exterior** — en el hop 8 la latencia sube notablemente: cruzamos de red local a backbone
+
+<Callout type="info">
+  Los `* * *` no significan que los paquetes no pasen — solo que ese router no envía Time Exceeded de vuelta. El tráfico sigue fluyendo hacia adelante. La ruta que muestra traceroute puede variar entre ejecuciones por balanceo de carga (ECMP).
+</Callout>
+
+---
+
+## 🔒 Relevancia en pentesting
+
+**Ping sweep — descubrimiento de hosts activos:**
+
+```bash
+# Con fping (más rápido que ping en bucle)
+fping -a -g 192.168.66.0/24 2>/dev/null
+
+# Con nmap (también usa ICMP por defecto sin root)
+nmap -sn 192.168.66.0/24
+```
+
+**Traceroute para mapear red:**
+
+```bash
+traceroute -n 10.10.11.23       # -n evita resolución DNS (más rápido)
+traceroute -I 10.10.11.23       # usa ICMP en vez de UDP (más compatible)
+
+# Windows
+tracert 10.10.11.23
+```
+
+**Detectar firewalls con ICMP Type 3:**
+
+Cuando un puerto está cerrado o filtrado, algunos dispositivos responden con `ICMP Type 3 (Destination Unreachable)` con un Code específico:
+
+| Code | Significado |
+|------|-------------|
+| 0 | Network unreachable |
+| 1 | Host unreachable |
+| 3 | Port unreachable (puerto cerrado en UDP) |
+| 13 | Communication administratively prohibited (firewall) |
+
+<Callout type="warning">
+  En entornos con firewall corporativo, el ICMP suele estar bloqueado. Para host discovery en CTFs usá siempre un escaneo TCP además de ping — `nmap -sn` cae a ARP en red local y a TCP en remoto cuando ICMP no responde.
+</Callout>
+
+---
+
+## 🛠️ Comandos de referencia
+
+```bash
+# Ping básico (4 paquetes)
+ping -c 4 192.168.66.1
+
+# Ping continuo con timestamp
+ping -D 192.168.66.1
+
+# Ping sweep de subred
+fping -a -g 192.168.66.0/24 2>/dev/null
+
+# Traceroute estándar (UDP por defecto en Linux)
+traceroute example.com
+
+# Traceroute con ICMP (similar a Windows tracert)
+traceroute -I example.com
+
+# Traceroute sin resolución DNS
+traceroute -n 10.10.11.23
+
+# Capturar ICMP en tiempo real
+tcpdump -i eth0 icmp -n
+
+# Filtro en Wireshark
+icmp
+```
+
+```powershell
+# Windows
+ping 192.168.66.1
+tracert example.com
+```

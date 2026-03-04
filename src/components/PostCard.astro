@@ -1,0 +1,169 @@
+---
+import Tag from './Tag.astro';
+
+interface Props {
+  title: string;
+  excerpt: string;
+  date: Date;
+  tags: string[];
+  difficulty?: 'easy' | 'medium' | 'hard';
+  slug: string;
+  series?: string;
+  num: number;
+}
+
+const { title, excerpt, date, tags, difficulty, slug, series, num } = Astro.props;
+const href = series ? `/salas/${series}/${slug}` : `/salas/${slug}`;
+
+const difficultyMap = {
+  easy:   { label: 'fácil',  cls: 'diff-easy' },
+  medium: { label: 'medio',  cls: 'diff-med' },
+  hard:   { label: 'difícil', cls: 'diff-hard' },
+};
+
+const diff = difficulty ? difficultyMap[difficulty] : null;
+
+const formattedDate = date.toLocaleDateString('es-AR', {
+  year: 'numeric',
+  month: 'short',
+  day: '2-digit',
+});
+
+const numStr = String(num).padStart(2, '0');
+---
+
+<a href={href} class="post-card">
+  <span class="post-num">#{numStr}</span>
+  <div class="post-body">
+    <h3 class="post-title">{title}</h3>
+    <p class="post-excerpt">{excerpt}</p>
+    <div class="post-tags">
+      {tags.map(t => <Tag name={t} />)}
+    </div>
+  </div>
+  <div class="post-meta">
+    <span class="post-date">{formattedDate}</span>
+    {diff && <span class:list={['diff-badge', diff.cls]}>{diff.label}</span>}
+    <span class="post-arrow">→</span>
+  </div>
+</a>
+
+<style>
+  .post-card {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    align-items: start;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg2);
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .post-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    transform: scaleY(0);
+    transition: transform 0.2s;
+    transform-origin: bottom;
+  }
+
+  .post-card:hover {
+    background: var(--bg3);
+    border-color: rgba(0, 229, 255, 0.2);
+  }
+
+  .post-card:hover::before {
+    transform: scaleY(1);
+  }
+
+  .post-num {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    padding-top: 3px;
+    align-self: start;
+  }
+
+  .post-title {
+    font-family: var(--display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 6px;
+    line-height: 1.3;
+    transition: color 0.2s;
+  }
+
+  .post-card:hover .post-title {
+    color: var(--accent);
+  }
+
+  .post-excerpt {
+    font-size: 0.875rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .post-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .post-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    min-width: 90px;
+  }
+
+  .post-date {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .post-arrow {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    transition: color 0.2s, transform 0.2s;
+    display: inline-block;
+  }
+
+  .post-card:hover .post-arrow {
+    color: var(--accent);
+    transform: translateX(4px);
+  }
+
+  @media (max-width: 640px) {
+    .post-card {
+      grid-template-columns: 36px 1fr;
+    }
+    .post-meta {
+      grid-column: 2;
+      flex-direction: row;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .post-arrow { display: none; }
+  }
+</style>

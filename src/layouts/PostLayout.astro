@@ -1,0 +1,326 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import Tag from '../components/Tag.astro';
+import SeriesNav from '../components/SeriesNav.astro';
+import type { CollectionEntry } from 'astro:content';
+
+interface UsefulFor {
+  area: string;
+  pct: number;
+}
+
+interface Props {
+  title: string;
+  date: Date;
+  tags: string[];
+  excerpt: string;
+  headings?: { depth: number; slug: string; text: string }[];
+  series?: string;
+  seriesPosts?: CollectionEntry<'posts'>[];
+  currentSlug?: string;
+  usefulFor?: UsefulFor[];
+}
+
+const {
+  title,
+  date,
+  tags,
+  excerpt,
+  headings = [],
+  series,
+  seriesPosts = [],
+  currentSlug = '',
+  usefulFor = [],
+} = Astro.props;
+
+const formattedDate = date.toLocaleDateString('es-AR', {
+  year: 'numeric', month: 'long', day: 'numeric',
+});
+
+const toc = headings.filter(h => h.depth <= 3);
+const hasSidebar = seriesPosts.length > 0 || toc.length > 0;
+
+function pctColor(pct: number) {
+  if (pct >= 75) return 'var(--accent)';
+  if (pct >= 45) return 'var(--accent3)';
+  return 'var(--accent2)';
+}
+---
+
+<BaseLayout title={title} description={excerpt}>
+  <div class="reading-progress" id="readingProgress"></div>
+
+  <div class="container post-container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+      <span class="bc-item"><a href="/">~</a></span>
+      <span class="bc-sep">/</span>
+      <span class="bc-item"><a href="/salas">salas</a></span>
+      {series && (
+        <>
+          <span class="bc-sep">/</span>
+          <span class="bc-item"><a href={`/salas/${series}`}>{series}</a></span>
+        </>
+      )}
+      <span class="bc-sep">/</span>
+      <span class="bc-item bc-current">{currentSlug}</span>
+    </nav>
+
+    <div class:list={['post-grid', !hasSidebar && 'no-sidebar']}>
+      <article class="post-article">
+        <header class="post-header">
+          <h1 class="post-title">{title}</h1>
+          <div class="post-meta">
+            <span class="meta-date">{formattedDate}</span>
+          </div>
+          <div class="post-tags">
+            {tags.map(t => <Tag name={t} />)}
+          </div>
+
+          {usefulFor.length > 0 && (
+            <div class="useful-for">
+              <span class="useful-label">útil para</span>
+              <div class="useful-bars">
+                {usefulFor.map(u => (
+                  <div class="useful-item">
+                    <span class="useful-area">{u.area}</span>
+                    <div class="useful-track">
+                      <div
+                        class="useful-fill"
+                        style={`--w: ${u.pct}%; background: ${pctColor(u.pct)};`}
+                      ></div>
+                    </div>
+                    <span class="useful-pct" style={`color: ${pctColor(u.pct)}`}>{u.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </header>
+
+        <div class="prose">
+          <slot />
+        </div>
+      </article>
+
+      {hasSidebar && (
+        <aside class="post-sidebar">
+          {series && seriesPosts.length > 0 && (
+            <SeriesNav series={series} posts={seriesPosts} currentSlug={currentSlug} />
+          )}
+          {toc.length > 0 && (
+            <div class="toc-widget">
+              <h5 class="toc-title">$ índice</h5>
+              <ul class="toc-list">
+                {toc.map(h => (
+                  <li class:list={['toc-item', `toc-h${h.depth}`]}>
+                    <a href={`#${h.slug}`} class="toc-link">{h.text}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
+      )}
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .reading-progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    z-index: 200;
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 24px 0 0;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    flex-wrap: wrap;
+  }
+
+  .bc-item a { color: var(--text-dim); text-decoration: none; }
+  .bc-item a:hover { color: var(--accent); }
+  .bc-sep { color: var(--border); }
+  .bc-current { color: var(--text); }
+
+  .post-container { padding-bottom: 80px; }
+
+  .post-grid {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 40px;
+    margin-top: 32px;
+    align-items: start;
+  }
+
+  .post-grid.no-sidebar {
+    grid-template-columns: 1fr;
+    max-width: 760px;
+  }
+
+  .post-header { margin-bottom: 40px; }
+
+  .post-title {
+    font-family: var(--display);
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 800;
+    color: var(--text-bright);
+    line-height: 1.2;
+    margin-bottom: 14px;
+  }
+
+  .post-meta {
+    margin-bottom: 12px;
+  }
+
+  .meta-date {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+
+  .post-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  /* Útil para */
+  .useful-for {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .useful-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .useful-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .useful-item {
+    display: grid;
+    grid-template-columns: 140px 1fr 36px;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .useful-area {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .useful-track {
+    height: 4px;
+    background: var(--bg3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .useful-fill {
+    height: 100%;
+    width: var(--w);
+    border-radius: 2px;
+    animation: fillbar 0.8s ease-out forwards;
+  }
+
+  .useful-pct {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: right;
+  }
+
+  /* Sidebar */
+  .post-sidebar {
+    position: sticky;
+    top: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .toc-widget {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+  }
+
+  .toc-title {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+
+  .toc-list { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .toc-h3 { padding-left: 12px; }
+
+  .toc-link {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    display: block;
+    padding: 3px 6px;
+    border-radius: 3px;
+    transition: all 0.15s;
+    line-height: 1.4;
+  }
+
+  .toc-link:hover {
+    color: var(--accent);
+    background: rgba(0, 229, 255, 0.05);
+  }
+
+  @media (max-width: 900px) {
+    .post-grid { grid-template-columns: 1fr; }
+    .post-sidebar { display: none; }
+  }
+
+  @media (max-width: 640px) {
+    .useful-item { grid-template-columns: 110px 1fr 32px; }
+  }
+</style>
+
+<script>
+  const bar = document.getElementById('readingProgress');
+  if (bar) {
+    window.addEventListener('scroll', () => {
+      const doc = document.documentElement;
+      const pct = doc.scrollHeight > doc.clientHeight
+        ? (doc.scrollTop / (doc.scrollHeight - doc.clientHeight)) * 100
+        : 0;
+      bar.style.width = `${pct}%`;
+    }, { passive: true });
+  }
+</script>

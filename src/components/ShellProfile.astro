@@ -1,0 +1,170 @@
+---
+interface Stat {
+  label: string;
+  value: string;    // e.g. "Alta", "Básico", "✅", "❌"
+  positive?: boolean;
+  negative?: boolean;
+}
+
+interface Props {
+  name: string;
+  full: string;
+  tagline: string;
+  color: string;
+  default?: boolean;
+  stats: Stat[];
+  bestFor: string[];
+}
+
+const { name, full, tagline, color, default: isDefault = false, stats, bestFor } = Astro.props;
+---
+
+<div class="shell-profile" style={`--shell-color: ${color}`}>
+  <div class="shell-header">
+    <div class="shell-name-wrap">
+      <div class="shell-name-row">
+        <span class="shell-name">{name}</span>
+        {isDefault && <span class="shell-default">default</span>}
+      </div>
+      <span class="shell-full">{full}</span>
+    </div>
+    <p class="shell-tagline">{tagline}</p>
+  </div>
+
+  <div class="shell-stats">
+    {stats.map(s => (
+      <div class="shell-stat">
+        <span class="stat-label">{s.label}</span>
+        <span class:list={['stat-value', s.positive && 'positive', s.negative && 'negative']}>
+          {s.value}
+        </span>
+      </div>
+    ))}
+  </div>
+
+  <div class="shell-best">
+    <span class="best-label">ideal para</span>
+    <div class="best-tags">
+      {bestFor.map(b => <span class="best-tag">{b}</span>)}
+    </div>
+  </div>
+</div>
+
+<style>
+  .shell-profile {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--shell-color);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin: 1.2em 0;
+  }
+
+  .shell-header {
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .shell-name-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .shell-name {
+    font-family: var(--mono);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--shell-color);
+  }
+
+  .shell-default {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #27c93f;
+    border: 1px solid rgba(39, 201, 63, 0.35);
+    background: rgba(39, 201, 63, 0.08);
+    padding: 2px 7px;
+    border-radius: 3px;
+  }
+
+  .shell-full {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+  }
+
+  .shell-tagline {
+    font-size: 0.88rem;
+    color: var(--text);
+    line-height: 1.5;
+    margin-top: 6px;
+  }
+
+  .shell-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .shell-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text-bright);
+    font-weight: 700;
+  }
+
+  .stat-value.positive { color: #27c93f; }
+  .stat-value.negative { color: #ff4757; }
+
+  .shell-best {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .best-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .best-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .best-tag {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    background: var(--bg3);
+  }
+</style>

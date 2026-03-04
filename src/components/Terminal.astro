@@ -1,0 +1,115 @@
+---
+interface Line {
+  type: 'prompt' | 'cmd' | 'output' | 'success' | 'error' | 'highlight';
+  text: string;
+}
+
+interface Props {
+  title?: string;
+  lines: Line[];
+}
+
+const { title = 'terminal', lines } = Astro.props;
+---
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <div class="dots">
+      <span class="dot dot-red"></span>
+      <span class="dot dot-yellow"></span>
+      <span class="dot dot-green"></span>
+    </div>
+    <span class="terminal-title">{title}</span>
+  </div>
+  <div class="terminal-accent-line"></div>
+  <div class="terminal-body">
+    {lines.map((line, i) => (
+      <div class:list={['t-line', `t-${line.type}`]}>
+        {line.type === 'prompt' && <span class="t-prompt">root@kali:~$</span>}
+        {line.type === 'cmd' && <span class="t-prompt">$</span>}
+        <span class="t-text">{line.text}</span>
+      </div>
+    ))}
+    <div class="t-line t-prompt">
+      <span class="t-prompt">root@kali:~$</span>
+      <span class="t-cursor">▋</span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .terminal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .dot-red    { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green  { background: #28c840; }
+
+  .terminal-title {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .terminal-accent-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+
+  .terminal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.6;
+  }
+
+  .t-line {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+
+  .t-prompt { color: var(--accent); flex-shrink: 0; }
+
+  .t-prompt .t-text   { color: var(--text); }
+  .t-cmd .t-text      { color: var(--text); }
+  .t-output .t-text   { color: var(--text-dim); padding-left: 16px; }
+  .t-success .t-text  { color: #27c93f; }
+  .t-error .t-text    { color: var(--accent2); }
+  .t-highlight .t-text { color: var(--accent3); }
+
+  .t-cursor {
+    animation: blink 1s step-end infinite;
+    color: var(--accent);
+  }
+</style>

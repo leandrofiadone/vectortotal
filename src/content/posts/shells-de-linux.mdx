@@ -1,0 +1,177 @@
+---
+title: "Shells de Linux: Bash, Fish y Zsh"
+date: 2026-03-03
+excerpt: "Todo lo que necesitás saber sobre las shells de Linux: cómo funcionan, cuáles existen y cuándo usar Bash, Fish o Zsh según tu caso de uso."
+tags: ["linux", "fundamentos"]
+series: linux-fundamentals
+usefulFor:
+  - { area: "fundamentos linux", pct: 100 }
+  - { area: "pentesting", pct: 65 }
+  - { area: "productividad", pct: 80 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ShellProfile from '../../components/ShellProfile.astro';
+
+Al igual que Windows tiene la Símbolo del Sistema y PowerShell, Linux tiene distintos tipos de **shells** disponibles, cada una con sus propias características. La shell es el intérprete que procesa lo que escribís en la terminal y lo ejecuta.
+
+Para ver cuál shell estás usando ahora mismo:
+
+```bash
+echo $SHELL
+# /bin/bash
+
+cat /etc/shells   # todas las instaladas en el sistema
+```
+
+### Cambiar de shell
+
+```bash
+# Temporalmente (solo en esta sesión)
+zsh
+
+# Permanentemente
+chsh -s /usr/bin/zsh
+```
+
+<Callout type="info">
+  El cambio permanente con `chsh` toma efecto recién al abrir una nueva sesión de terminal.
+</Callout>
+
+---
+
+## ⚙️ Bash — Bourne Again Shell
+
+<ShellProfile
+  name="bash"
+  full="Bourne Again Shell"
+  tagline="La shell estándar de Linux. Viene por defecto en casi todas las distros y es la base de la mayoría de scripts del ecosistema."
+  color="#ffd32a"
+  default={true}
+  stats={[
+    { label: "Scripting",      value: "Completo",   positive: true  },
+    { label: "Compatibilidad", value: "Universal",  positive: true  },
+    { label: "Highlighting",   value: "No",         negative: true  },
+    { label: "Autocorrección", value: "No",         negative: true  },
+    { label: "Arranque",       value: "Muy rápido", positive: true  },
+    { label: "Personalización",value: "Básica"                      },
+  ]}
+  bestFor={["CTF / pentest", "scripting", "servidores remotos"]}
+/>
+
+Bash surgió como reemplazo mejorado de `sh`, `ksh` y `csh`, tomando lo mejor de cada una. Sus características clave:
+
+- **Tab completion** — presioná <kbd>Tab</kbd> para completar comandos, rutas y variables. Doble <kbd>Tab</kbd> muestra todas las opciones.
+- **Historial** — flechas ↑ ↓ para navegar, `history` para ver todo, <kbd>Ctrl</kbd>+<kbd>R</kbd> para buscar de forma interactiva.
+- **Scripting POSIX** — cualquier script `.sh` que encuentres en Internet va a correr en Bash sin modificaciones.
+
+```bash
+# Navegar historial de forma interactiva
+Ctrl + R
+
+# Ejecutar el último comando que usó nmap
+!nmap
+
+# Ver los últimos 20 comandos
+history | tail -20
+```
+
+<Callout type="tip">
+  En CTFs y pentesting, todos los reverse shells, one-liners y scripts de explotación asumen Bash. Es la más importante de las tres para aprender bien.
+</Callout>
+
+---
+
+## 🐟 Fish — Friendly Interactive Shell
+
+<ShellProfile
+  name="fish"
+  full="Friendly Interactive Shell"
+  tagline="La más amigable. Sacrifica compatibilidad POSIX a cambio de una experiencia de usuario mucho más cómoda e intuitiva."
+  color="#00e5ff"
+  stats={[
+    { label: "Scripting",      value: "Limitado",   negative: true  },
+    { label: "Compatibilidad", value: "No POSIX",   negative: true  },
+    { label: "Highlighting",   value: "Built-in",   positive: true  },
+    { label: "Autocorrección", value: "Sí",         positive: true  },
+    { label: "Arranque",       value: "Medio"                       },
+    { label: "Personalización",value: "Interactiva",positive: true  },
+  ]}
+  bestFor={["uso cotidiano", "principiantes", "productividad"]}
+/>
+
+Fish prioriza la experiencia del usuario sobre todo lo demás:
+
+- **Autosugerencias en tiempo real** — mientras escribís, Fish sugiere el comando más probable en gris. Presioná → para aceptar.
+- **Resaltado de sintaxis built-in** — los comandos válidos aparecen en un color y los inválidos en otro. Detectás errores *antes* de ejecutar.
+- **Autocorrección** — escribe `gti` y Fish te pregunta si quisiste decir `git`.
+- **Personalización interactiva** — `fish_config` abre un panel web para cambiar temas, prompts y colores sin tocar archivos de configuración.
+
+<Callout type="warning">
+  Fish **no es compatible con scripts Bash/POSIX**. Si necesitás ejecutar un `.sh`, llamalo explícitamente: `bash script.sh`. Por eso no es ideal como shell principal en servidores.
+</Callout>
+
+---
+
+## ⚡ Zsh — Z Shell
+
+<ShellProfile
+  name="zsh"
+  full="Z Shell"
+  tagline="El punto medio perfecto: potencia de Bash más comodidad moderna. Con oh-my-zsh se convierte en la shell más personalizable del ecosistema."
+  color="#a29bfe"
+  stats={[
+    { label: "Scripting",      value: "Excelente",  positive: true  },
+    { label: "Compatibilidad", value: "POSIX",      positive: true  },
+    { label: "Highlighting",   value: "Via plugin",                 },
+    { label: "Autocorrección", value: "Sí",         positive: true  },
+    { label: "Arranque",       value: "Depende"                     },
+    { label: "Personalización",value: "Avanzada",   positive: true  },
+  ]}
+  bestFor={["uso diario", "desarrollo", "Kali Linux"]}
+/>
+
+Zsh combina la compatibilidad de Bash con características modernas:
+
+- **Tab completion avanzado** — muestra un menú interactivo de opciones navegable con flechas, no solo completa a ciegas.
+- **Globbing extendido** — patrones de búsqueda de archivos mucho más potentes que Bash.
+- **oh-my-zsh** — el framework de plugins más popular: temas, aliases, integración con Git, completado de comandos para Docker, kubectl, etc.
+
+```bash
+# Instalar oh-my-zsh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+
+# Plugins recomendados en ~/.zshrc
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting z)
+```
+
+<Callout type="tip">
+  Si usás Kali Linux, Zsh ya viene instalado y preconfigurado. Es la shell que más uso — tiene la compatibilidad de Bash con la comodidad de Fish.
+</Callout>
+
+---
+
+## 📊 Comparativa rápida
+
+| Característica | Bash | Fish | Zsh |
+|---|---|---|---|
+| **Scripting** | ✅ Completo | ⚠️ Limitado | ✅ Excelente |
+| **POSIX compatible** | ✅ | ❌ | ✅ |
+| **Syntax highlighting** | ❌ | ✅ Built-in | 🔌 Plugin |
+| **Autocorrección** | ❌ | ✅ | ✅ |
+| **Tab completion** | Básico | Avanzado | Extensible |
+| **Arranque** | ⚡ Rápido | Medio | Depende |
+| **Curva de entrada** | Baja | Muy baja | Media |
+
+---
+
+## 🎯 ¿Cuál usar?
+
+- **En CTFs y pentesting** → **Bash**. Todos los exploits, reverse shells y scripts del ecosistema la asumen. Conocerla a fondo es no negociable.
+- **En tu máquina de uso diario** → **Zsh** con oh-my-zsh. La compatibilidad de Bash más plugins útiles.
+- **Empezando en Linux** → **Fish**. La curva de entrada más baja, el resaltado de sintaxis te salva de muchos errores.
+
+<Callout type="danger">
+  En servidores remotos o entornos que no controlás, **asumir que hay algo distinto a Bash puede romperte los scripts**. Siempre verificá con `echo $SHELL` antes de ejecutar.
+</Callout>

@@ -1,0 +1,261 @@
+---
+title: "Routing: cómo los paquetes cruzan Internet"
+date: 2026-03-04
+excerpt: "IP te da una dirección, pero no te dice cómo llegar. Los routers construyen tablas de rutas y usan protocolos como OSPF o BGP para decidir el mejor camino entre redes distintas."
+tags: ["net", "fundamentos"]
+series: network-essentials
+usefulFor:
+  - { area: "fundamentos de red", pct: 95 }
+  - { area: "análisis de tráfico", pct: 55 }
+  - { area: "pentesting", pct: 60 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Vimos que ARP resuelve MACs dentro de una misma red. Pero ¿qué pasa cuando el destino está en **otra red**? Tu PC no puede mandar un ARP broadcast a Internet — eso no escala. Necesitás un router que sepa hacia dónde reenviar el paquete. Ese es el problema que resuelve el routing.
+
+---
+
+## 🌐 El problema: redes que no se conocen entre sí
+
+Imaginá tres redes separadas. Cada una tiene sus propios dispositivos y su propio espacio de IPs. Para que Network 1 pueda hablar con Network 3, los paquetes tienen que pasar por routers intermedios — y cada router tiene que saber a dónde mandarlo:
+
+```
+Network #1              Internet              Network #2
+(192.168.1.0/24)        (routers)             (10.0.0.0/8)
+┌─────────────┐         ┌───────┐             ┌─────────────┐
+│  PC: .1     │───eth0──│  R1   │──────────── │  Server: .5 │
+│  GW: .254   │         └───────┘             │  GW: 10.0.1 │
+└─────────────┘            │                  └─────────────┘
+                        ┌───────┐
+                        │  R2   │──── Network #3 (172.16.0.0/12)
+                        └───────┘
+```
+
+Cada router en el camino toma la decisión: *"para llegar a esta IP, reenvío el paquete por esta interfaz"*. Esa decisión se basa en la **tabla de routing**.
+
+---
+
+## 📋 La tabla de routing
+
+La tabla de routing es la estructura central de cualquier router (y de tu propia PC). Asocia rangos de IPs de destino con interfaces de salida o gateways.
+
+```bash
+# Ver la tabla de routing en Linux
+ip route show
+```
+
+```
+default via 192.168.66.1 dev eth0
+192.168.66.0/24 dev eth0 proto kernel scope link src 192.168.66.89
+10.10.0.0/16 via 10.10.0.1 dev tun0
+```
+
+| Entrada | Significado |
+|---------|-------------|
+| `default via 192.168.66.1` | Todo lo que no matchea otra ruta → mandalo al gateway |
+| `192.168.66.0/24 dev eth0` | Esta red es local, no hace falta gateway |
+| `10.10.0.0/16 via 10.10.0.1 dev tun0` | Esta red llega por la VPN |
+
+<Callout type="info">
+  El router usa la regla del **longest prefix match**: elige la ruta más específica que matchee la IP destino. `192.168.66.89` matchea tanto `192.168.66.0/24` como `0.0.0.0/0`, pero gana el `/24` por ser más específico.
+</Callout>
+
+---
+
+## 🔄 Cómo viaja un paquete hop a hop
+
+Cuando tu PC manda un paquete a `93.184.215.14` (example.com):
+
+<Step n={1} title="Tu PC consulta su tabla de routing">
+  No hay ruta específica para `93.184.215.14` → usa la ruta `default`.
+  El **gateway** es `192.168.66.1`. Necesita su MAC → ARP request.
+  Arma el frame: IP destino `93.184.215.14`, MAC destino = MAC del gateway.
+</Step>
+
+<Step n={2} title="R1 (tu gateway) recibe el paquete">
+  Decrementa el TTL (64 → 63).
+  Consulta su propia tabla de routing para `93.184.215.14`.
+  Lo reenvía por su enlace WAN al siguiente router del ISP.
+  **Cambia la MAC destino** — pero la IP destino nunca cambia.
+</Step>
+
+<Step n={3} title="Routers intermedios repiten el proceso">
+  Cada router: decrementa TTL, consulta tabla, reenvía.
+  Si TTL llega a 0 → ICMP Time Exceeded (lo que usa traceroute).
+  El paquete puede tomar distintas rutas en distintos momentos.
+</Step>
+
+<Step n={4} title="El servidor destino recibe el paquete" last={true}>
+  El IP destino es suyo → lo procesa.
+  La MAC destino ya es la suya (en el último salto).
+  Responde al origen — el camino de vuelta puede ser diferente.
+</Step>
+
+<Callout type="tip">
+  La IP de origen y destino **no cambian** a lo largo de toda la ruta (salvo NAT). Lo que cambia en cada salto es el par de MACs de origen/destino — por eso ARP y routing son complementarios, no competidores.
+</Callout>
+
+---
+
+## ⚙️ Routing estático vs dinámico
+
+### Routing estático
+
+Las rutas se configuran a mano. Simple, predecible, sin overhead.
+
+```bash
+# Agregar ruta estática (Linux)
+ip route add 10.10.0.0/16 via 192.168.66.254
+ip route add default via 192.168.66.1
+
+# Ruta persistente (agregar a /etc/network/interfaces o netplan)
+```
+
+Ideal para: redes pequeñas, laboratorios, VPNs punto a punto.
+Problema: no escala. Con miles de redes necesitás algo automático.
+
+### Routing dinámico
+
+Los routers intercambian información entre sí y actualizan sus tablas automáticamente. Si un enlace cae, recalculan la ruta.
+
+---
+
+## 📡 Protocolos de routing
+
+### RIP — Routing Information Protocol
+
+El más simple. Usa **conteo de saltos** como métrica — cuantos menos routers hasta el destino, mejor. Máximo 15 hops (16 = inalcanzable). Cada 30 segundos los routers broadcast su tabla completa.
+
+- **Tipo:** distance-vector
+- **Métrica:** hop count
+- **Problema:** ignora el ancho de banda. Un enlace lento de 1 hop puede ganarle a uno rápido de 2 hops.
+- **Uso hoy:** prácticamente obsoleto, solo en redes muy pequeñas o legacy
+
+### OSPF — Open Shortest Path First
+
+Cada router tiene un **mapa completo de la topología** (link-state database) y calcula el camino más corto usando el algoritmo de Dijkstra. Considera el ancho de banda de cada enlace como métrica (costo).
+
+- **Tipo:** link-state
+- **Métrica:** costo (basado en bandwidth)
+- **Convergencia:** rápida — reacciona rápido a cambios
+- **Uso hoy:** estándar en redes corporativas y campus networks
+- **Áreas:** escala diviendo la red en áreas con un área backbone (Area 0)
+
+### EIGRP — Enhanced Interior Gateway Routing Protocol
+
+Protocolo propietario de Cisco (aunque existe una versión abierta). Combina aspectos de distance-vector y link-state. Considera bandwidth, delay, carga y confiabilidad.
+
+- **Tipo:** hybrid (advanced distance-vector)
+- **Métrica:** compuesta (bandwidth + delay por defecto)
+- **Ventaja:** convergencia muy rápida, eficiente en WAN
+- **Uso hoy:** redes Cisco
+
+### BGP — Border Gateway Protocol
+
+<ProtoCard
+  name="BGP"
+  description="Border Gateway Protocol — el protocolo de routing del Internet. Conecta Sistemas Autónomos (AS) entre sí: ISPs, grandes empresas, CDNs. Cada AS tiene un número único (ASN) y BGP decide cómo fluye el tráfico a nivel global."
+  layer="Aplicación (L7 sobre TCP)"
+  facts={[
+    { label: "Transporte",    value: "TCP 179",        highlight: true },
+    { label: "Tipo",          value: "Path-vector"                      },
+    { label: "RFC",           value: "4271"                             },
+    { label: "Escala",        value: "~1M prefijos",   highlight: true  },
+    { label: "Métrica",       value: "AS-path + atributos"              },
+    { label: "Uso",           value: "Internet (eBGP) / ISP (iBGP)"    },
+  ]}
+/>
+
+BGP no busca el camino más corto en hops — busca el camino más **conveniente** según políticas (contratos entre ISPs, preferencias de tráfico, costos). Es el protocolo que hace que Internet funcione como una sola red global.
+
+```
+AS65001 (ISP A) ──── AS65002 (ISP B) ──── AS65003 (CDN)
+    │                                           │
+AS64512 (tu empresa)                    AS13335 (Cloudflare)
+```
+
+Cada bloque `AS` controla sus propias rutas y decide a quién se las anuncia. Un error de configuración BGP puede accidentalmente anunciar las rutas de todo Internet → **BGP hijacking**.
+
+---
+
+## 🔒 Relevancia en pentesting
+
+**Enumerar rutas disponibles en un host comprometido:**
+
+```bash
+# Ver todas las rutas
+ip route show
+ip route show table all
+
+# Rutas con métricas
+route -n
+
+# En Windows
+route print
+```
+
+**Pivoting — usar un host comprometido como gateway:**
+
+Si comprometiste un host que tiene acceso a una red interna (ej: `10.10.10.0/24`), podés agregar esa ruta en tu máquina para alcanzarla:
+
+```bash
+# Agregar ruta a red interna via host comprometido (en tu Kali)
+ip route add 10.10.10.0/24 via <IP_del_host_comprometido>
+
+# O con proxychains / chisel para tunneling sin root
+```
+
+**Identificar segmentación de red:**
+
+```bash
+# Ver interfaces y subredes accesibles
+ip addr show
+ip route show
+
+# Desde nmap: descubrir subredes alcanzables
+nmap -sn 10.0.0.0/8 --exclude 10.10.10.1
+```
+
+<Callout type="warning">
+  En un pentest interno, entender la tabla de routing del host comprometido te dice qué otras redes son accesibles. Un host con dos rutas (`192.168.1.0/24` y `10.0.0.0/8`) probablemente es un servidor con acceso a la red de administración.
+</Callout>
+
+---
+
+## 🛠️ Comandos de referencia
+
+```bash
+# Ver tabla de routing
+ip route show
+route -n
+
+# Ver ruta hacia un destino específico
+ip route get 8.8.8.8
+
+# Agregar ruta
+ip route add 10.10.0.0/16 via 192.168.66.1 dev eth0
+
+# Agregar default gateway
+ip route add default via 192.168.66.1
+
+# Eliminar ruta
+ip route del 10.10.0.0/16
+
+# Ver tabla de routing por interfaz
+ip route show dev eth0
+
+# Traceroute para seguir la ruta real
+traceroute -n 93.184.215.14
+```
+
+```powershell
+# Windows
+route print
+route add 10.10.0.0 mask 255.255.0.0 192.168.66.1
+route delete 10.10.0.0
+tracert 93.184.215.14
+```

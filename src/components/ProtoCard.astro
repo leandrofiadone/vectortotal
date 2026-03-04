@@ -1,0 +1,129 @@
+---
+interface Fact {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}
+
+interface Props {
+  name: string;
+  description: string;
+  layer: string;
+  facts: Fact[];
+}
+
+const { name, description, layer, facts } = Astro.props;
+---
+
+<div class="proto-card">
+  <div class="proto-top">
+    <div class="proto-name-wrap">
+      <span class="proto-label">protocolo</span>
+      <span class="proto-name">{name}</span>
+    </div>
+    <span class="proto-layer">{layer}</span>
+  </div>
+  <p class="proto-desc">{description}</p>
+  <div class="proto-facts">
+    {facts.map(f => (
+      <div class:list={['proto-fact', f.highlight && 'proto-fact-hi']}>
+        <span class="fact-label">{f.label}</span>
+        <span class="fact-value">{f.value}</span>
+      </div>
+    ))}
+  </div>
+</div>
+
+<style>
+  .proto-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin: 1.5em 0;
+  }
+
+  .proto-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .proto-name-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .proto-label {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+  }
+
+  .proto-name {
+    font-family: var(--display);
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+
+  .proto-layer {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+    align-self: flex-start;
+  }
+
+  .proto-desc {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .proto-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 14px;
+  }
+
+  .proto-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .fact-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .fact-value {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text-bright);
+    font-weight: 700;
+  }
+
+  .proto-fact-hi .fact-value {
+    color: var(--accent);
+  }
+</style>

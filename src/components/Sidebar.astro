@@ -1,0 +1,168 @@
+---
+import { SERIES } from '../data/series';
+
+interface Props {
+  categoryCounts: Record<string, number>;
+}
+
+const { categoryCounts } = Astro.props;
+
+const categories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+
+const categoryColors: Record<string, string> = {
+  web:         '#ff4757',
+  net:         '#00e5ff',
+  linux:       '#ffd32a',
+  crypto:      '#a29bfe',
+  osint:       '#55efc4',
+  fundamentos: '#6c5ce7',
+};
+
+const seriesEntries = Object.entries(SERIES);
+---
+
+<aside class="sidebar">
+  <!-- Widget: Áreas de estudio -->
+  <div class="widget">
+    <h4 class="widget-title"><span class="accent">$</span> áreas</h4>
+    <ul class="series-list">
+      {seriesEntries.map(([key, meta]) => (
+        <li class="series-item">
+          <a href="/salas" class="series-link">
+            <span class="series-icon">{meta.icon}</span>
+            <span class="series-name">{meta.title}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </div>
+
+  <!-- Widget: Tags -->
+  <div class="widget">
+    <h4 class="widget-title"><span class="accent">$</span> tags</h4>
+    <ul class="cat-list">
+      {categories.map(([cat, count]) => (
+        <li class="cat-item">
+          <span class="cat-link">
+            <span
+              class="cat-dot"
+              style={`background: ${categoryColors[cat] || 'var(--accent)'}`}
+            ></span>
+            <span class="cat-name">{cat}</span>
+          </span>
+          <span class="cat-count">{count}</span>
+        </li>
+      ))}
+      {categories.length === 0 && (
+        <li class="cat-empty">Sin salas aún</li>
+      )}
+    </ul>
+  </div>
+</aside>
+
+<style>
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .widget {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+  }
+
+  .widget-title {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .accent { color: var(--accent); }
+
+  /* Series */
+  .series-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .series-item {}
+
+  .series-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 5px 6px;
+    border-radius: 3px;
+    transition: all 0.2s;
+  }
+
+  .series-link:hover {
+    color: var(--text-bright);
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .series-icon { font-size: 0.95rem; }
+  .series-name { font-family: var(--body); font-size: 0.82rem; }
+
+  /* Categories */
+  .cat-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .cat-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .cat-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    padding: 4px 6px;
+    border-radius: 3px;
+    flex: 1;
+  }
+
+  .cat-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .cat-count {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    background: var(--bg3);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
+  .cat-empty {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
+</style>

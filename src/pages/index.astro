@@ -1,0 +1,318 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostCard from '../components/PostCard.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Terminal from '../components/Terminal.astro';
+import { getCollection } from 'astro:content';
+import { SERIES } from '../data/series';
+
+const allPosts = (await getCollection('posts'))
+  .filter(p => !p.data.draft)
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+// Group by series (preserving newest-first order)
+const seriesMap = new Map<string, typeof allPosts>();
+const ungrouped: typeof allPosts = [];
+for (const post of allPosts) {
+  if (post.data.series) {
+    if (!seriesMap.has(post.data.series)) seriesMap.set(post.data.series, []);
+    seriesMap.get(post.data.series)!.push(post);
+  } else {
+    ungrouped.push(post);
+  }
+}
+const seriesEntries = [...seriesMap.entries()];
+const seriesCount = seriesMap.size;
+
+// Count tags
+const categoryCounts: Record<string, number> = {};
+for (const post of allPosts) {
+  for (const tag of post.data.tags) {
+    categoryCounts[tag] = (categoryCounts[tag] ?? 0) + 1;
+  }
+}
+
+
+const terminalLines = [
+  { type: 'prompt' as const,    text: 'nmap -sV -sC -oA scan 10.10.11.23' },
+  { type: 'output' as const,    text: 'Starting Nmap 7.94 ( https://nmap.org )' },
+  { type: 'output' as const,    text: 'PORT   STATE SERVICE VERSION' },
+  { type: 'highlight' as const, text: '22/tcp open  ssh     OpenSSH 8.9p1' },
+  { type: 'highlight' as const, text: '80/tcp open  http    Apache httpd 2.4.52' },
+  { type: 'output' as const,    text: '|_http-title: Login — MegaCorp' },
+  { type: 'prompt' as const,    text: 'gobuster dir -u http://10.10.11.23 -w common.txt' },
+  { type: 'success' as const,   text: '/admin   (Status: 302) [Size: 280]' },
+  { type: 'success' as const,   text: '/uploads (Status: 200) [Size: 1024]' },
+  { type: 'error' as const,     text: '/backup  (Status: 403) [Size: 278]' },
+];
+
+const totalCategories = Object.keys(categoryCounts).length;
+---
+
+<BaseLayout title="vectortotal">
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="hero-text">
+        <div class="hero-brand">
+          <h1 class="hero-title glitch" data-text="vectortotal">vectortotal</h1>
+        </div>
+        <p class="hero-desc">
+          Apuntes de redes, Linux y seguridad ofensiva.
+          En español, sin vueltas.
+        </p>
+        <div class="hero-cta">
+          <a href="/salas" class="btn-primary">Ver salas →</a>
+        </div>
+      </div>
+      <div class="hero-terminal">
+        <Terminal title="vt:~$" lines={terminalLines} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats bar -->
+  <div class="stats-bar">
+    <div class="container stats-inner">
+      <div class="stat-item">
+        <span class="stat-val">{allPosts.length}</span>
+        <span class="stat-label">salas</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <span class="stat-val">{seriesCount}</span>
+        <span class="stat-label">áreas</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <span class="stat-val">{totalCategories}</span>
+        <span class="stat-label">categorías</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-item">
+        <span class="stat-val">ES</span>
+        <span class="stat-label">en español</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="container main-grid">
+    <section class="post-list">
+      {seriesEntries.map(([seriesKey, posts]) => {
+        const meta = SERIES[seriesKey];
+        return (
+          <div class="area-group">
+            <div class="area-group-header">
+              <span class="area-group-icon">{meta?.icon ?? '📚'}</span>
+              <a href={`/salas/${seriesKey}`} class="area-group-title">{meta?.title ?? seriesKey}</a>
+              <span class="area-group-count">{posts.length}</span>
+            </div>
+            <div class="area-group-posts">
+              {posts.map((post, i) => (
+                <PostCard
+                  title={post.data.title}
+                  excerpt={post.data.excerpt}
+                  date={post.data.date}
+                  tags={post.data.tags}
+                  slug={post.slug}
+                  series={seriesKey}
+                  num={i + 1}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {ungrouped.map((post, i) => (
+        <PostCard
+          title={post.data.title}
+          excerpt={post.data.excerpt}
+          date={post.data.date}
+          tags={post.data.tags}
+          slug={post.slug}
+          series={post.data.series}
+          num={i + 1}
+        />
+      ))}
+      {allPosts.length === 0 && (
+        <p class="empty">No hay salas publicadas aún.</p>
+      )}
+    </section>
+
+    <Sidebar categoryCounts={categoryCounts} />
+  </div>
+</BaseLayout>
+
+<style>
+  .hero {
+    padding: 80px 0 60px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-inner {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+  }
+
+  .hero-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 20px;
+  }
+
+  .hero-kanji {
+    font-family: var(--display);
+    font-size: clamp(1rem, 2vw, 1.4rem);
+    color: var(--text-dim);
+    letter-spacing: 0.35em;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .hero-title {
+    font-family: var(--display);
+    font-size: clamp(2.8rem, 7vw, 4.5rem);
+    font-weight: 800;
+    color: var(--text-bright);
+    line-height: 1;
+    margin-bottom: 0;
+  }
+
+  .hero-desc {
+    font-size: 1rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+    margin-bottom: 32px;
+    max-width: 420px;
+    font-weight: 300;
+  }
+
+  .hero-cta {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .stats-bar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 0;
+  }
+
+  .stats-inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .stat-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 16px;
+    min-width: 120px;
+  }
+
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 1.4rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .stat-sep {
+    width: 1px;
+    height: 40px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 40px;
+    padding-top: 48px;
+    padding-bottom: 80px;
+    align-items: start;
+  }
+
+  .post-list {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .area-group {}
+
+  .area-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .area-group-icon { font-size: 1rem; }
+
+  .area-group-title {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    flex: 1;
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+
+  .area-group-title:hover { color: var(--accent); }
+
+  .area-group-count {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 2px;
+  }
+
+  .area-group-posts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .empty {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 900px) {
+    .hero-inner { grid-template-columns: 1fr; }
+    .hero-terminal { display: none; }
+    .main-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .hero { padding: 48px 0 40px; }
+    .stat-sep { display: none; }
+    .stat-item { min-width: 50%; }
+  }
+</style>

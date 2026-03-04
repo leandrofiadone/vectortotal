@@ -1,0 +1,172 @@
+---
+title: "DHCP: cómo tu dispositivo obtiene IP automáticamente"
+date: 2026-03-03
+excerpt: "Cuando conectás tu laptop al WiFi de un café no escribís ninguna IP y todo funciona. Acá te explico por qué: qué es DHCP, el proceso DORA y cómo analizarlo con tshark."
+tags: ["net", "fundamentos"]
+series: network-essentials
+usefulFor:
+  - { area: "fundamentos de red", pct: 100 }
+  - { area: "análisis de tráfico", pct: 75 }
+  - { area: "pentesting", pct: 55 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Entrás al café, abrís la laptop, te conectás al WiFi y listo — navegás, accedés a TryHackMe, hacés lo tuyo. No escribiste ninguna dirección IP. No configuraste nada. ¿Cómo funciona eso?
+
+<ProtoCard
+  name="DHCP"
+  description="Dynamic Host Configuration Protocol — asigna configuración de red automáticamente a cada dispositivo que se conecta, evitando configuración manual y conflictos de IP."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Transporte",        value: "UDP",       highlight: true },
+    { label: "Puerto servidor",   value: "67",        highlight: true },
+    { label: "Puerto cliente",    value: "68",        highlight: true },
+    { label: "RFC",               value: "2131"       },
+    { label: "Tipo",              value: "Cliente / Servidor" },
+    { label: "Proceso",           value: "DORA"       },
+  ]}
+/>
+
+---
+
+## 🌐 Qué necesita un dispositivo para acceder a una red
+
+Para funcionar en cualquier red necesitás mínimo tres cosas:
+
+- **Dirección IP** + máscara de subred — tu identidad dentro de la red local
+- **Gateway** — el router por donde tus paquetes salen hacia Internet
+- **Servidor DNS** — para resolver `google.com` a su IP real
+
+Podés configurarlos a mano — y en **servidores lo hacés**, porque no cambian de red. Pero en dispositivos móviles sería un caos: cada red tiene su propio rango de IPs, y si dos dispositivos quedan con la misma IP se produce un **conflicto** y ninguno funciona.
+
+DHCP resuelve esto asignando toda esa configuración de forma automática cada vez que alguien se conecta.
+
+---
+
+## 🔄 El proceso DORA
+
+Cuando tu dispositivo se conecta a una red, DHCP ejecuta cuatro pasos en secuencia. El acrónimo **DORA** los resume:
+
+<Step n={1} title="Discover" label="broadcast">
+  El cliente **no tiene IP todavía**. Manda un grito a toda la red: *"¿Hay algún servidor DHCP por acá?"*
+
+  - **IP origen:** `0.0.0.0` — no tiene ninguna asignada aún
+  - **IP destino:** `255.255.255.255` — broadcast, lo recibe toda la red
+  - **MAC destino:** `ff:ff:ff:ff:ff:ff` — broadcast de capa 2
+</Step>
+
+<Step n={2} title="Offer" label="unicast">
+  El servidor DHCP responde con una oferta concreta: *"Tengo la IP `192.168.66.133` disponible para vos."*
+
+  - Incluye IP propuesta, máscara de subred, gateway y DNS
+  - Responde directamente a la MAC del cliente (todavía no sabe su IP)
+  - Si hay **varios servidores DHCP** en la red, el cliente recibe varias ofertas
+</Step>
+
+<Step n={3} title="Request" label="broadcast">
+  El cliente elige una oferta y avisa a toda la red: *"Acepto la oferta del servidor X."*
+
+  - Se sigue enviando como **broadcast** para notificar a todos los servidores
+  - Los servidores que no fueron elegidos saben que pueden liberar la IP que habían reservado
+</Step>
+
+<Step n={4} title="Acknowledge" label="unicast" last={true}>
+  El servidor confirma: *"La IP es tuya. Expira en 24 horas."*
+
+  - El cliente queda configurado con IP, máscara, gateway y DNS
+  - La IP se asigna por un tiempo: el **lease time** (tiempo de préstamo)
+  - Antes de que venza, el cliente negocia la renovación automáticamente
+</Step>
+
+<Callout type="tip">
+  Podés ver el lease time activo en Linux con `ip a` o `dhclient -v`. En Windows con `ipconfig /all` aparece como "Lease Obtained" y "Lease Expires".
+</Callout>
+
+---
+
+## 🔬 Captura de paquetes con tshark
+
+Podés ver el DORA completo en una captura real. El cliente obtiene la IP `192.168.66.133`:
+
+```bash
+tshark -r DHCP-G5000.pcap -n
+```
+
+```
+1   0.000000       0.0.0.0 → 255.255.255.255  DHCP 342  DHCP Discover  - Transaction ID 0xfb92d53f
+2   0.013904  192.168.66.1 → 192.168.66.133   DHCP 376  DHCP Offer     - Transaction ID 0xfb92d53f
+3   4.115318       0.0.0.0 → 255.255.255.255  DHCP 342  DHCP Request   - Transaction ID 0xfb92d53f
+4   4.228117  192.168.66.1 → 192.168.66.133   DHCP 376  DHCP ACK       - Transaction ID 0xfb92d53f
+```
+
+Puntos clave de esta captura:
+
+- **Paquetes 1 y 3** salen desde `0.0.0.0` — el cliente no tiene IP aún. Van al broadcast `255.255.255.255`.
+- **Paquetes 2 y 4** van directo a `192.168.66.133` — el servidor ya conoce al cliente por su MAC.
+- El **Transaction ID `0xfb92d53f`** es idéntico en los cuatro paquetes — así el cliente y el servidor saben que pertenecen al mismo intercambio.
+
+<Callout type="info">
+  En Discover y Request, a nivel de capa 2 (Ethernet), el cliente usa `ff:ff:ff:ff:ff:ff` como MAC de destino — el broadcast de Ethernet que reciben todos los dispositivos de la red local.
+</Callout>
+
+---
+
+## 🎯 Qué recibe el cliente al final
+
+| Dato | Ejemplo | Para qué sirve |
+|---|---|---|
+| **IP asignada** | `192.168.66.133` | Tu identidad en la red local |
+| **Máscara** | `255.255.255.0` | Define el rango de la red (`/24`) |
+| **Gateway** | `192.168.66.1` | Por donde salen los paquetes a Internet |
+| **DNS** | `8.8.8.8` | Para resolver nombres como `google.com` |
+
+---
+
+## 🔒 Relevancia en pentesting
+
+<Callout type="danger">
+  Los ataques basados en DHCP son muy efectivos en redes locales. Entender el protocolo es el primer paso para defenderse.
+</Callout>
+
+**DHCP Starvation** — El atacante solicita miles de IPs hasta agotar el pool del servidor. Los dispositivos legítimos ya no pueden obtener configuración.
+
+**Rogue DHCP Server** — El atacante levanta su propio servidor DHCP y responde *antes* que el legítimo. Le asigna a las víctimas un **gateway falso** — MITM clásico sin que nadie lo note.
+
+**DHCP Snooping** — La contramedida implementada en switches gestionados: filtra respuestas DHCP y solo permite las que vienen de puertos autorizados.
+
+<Callout type="warning">
+  En redes empresariales, el DHCP Snooping suele estar activo. Intentar levantar un Rogue DHCP es fácilmente detectable — tener autorización explícita antes de probarlo.
+</Callout>
+
+---
+
+## 🛠️ Comandos de referencia
+
+```bash
+# Ver IP asignada y configuración de red (Linux)
+ip a
+ip route show          # gateway actual
+
+# Liberar lease y solicitar nueva IP
+dhclient -r eth0       # liberar
+dhclient eth0          # renovar
+
+# Capturar tráfico DHCP en tiempo real
+tcpdump -i eth0 port 67 or port 68 -n
+
+# Filtro en Wireshark
+bootp
+```
+
+```powershell
+# Windows: ver info DHCP completa
+ipconfig /all
+
+# Liberar y renovar
+ipconfig /release
+ipconfig /renew
+```
