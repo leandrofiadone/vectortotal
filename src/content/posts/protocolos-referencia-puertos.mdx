@@ -1,0 +1,61 @@
+---
+title: "Referencia: protocolos de aplicación y sus puertos"
+date: 2026-03-05
+excerpt: "Tabla de referencia con los protocolos de aplicación cubiertos en esta subsección: puerto, transporte, cifrado y función de cada uno en una oración."
+tags: ["net", "fundamentos"]
+series: network
+subsection: Network Core Protocols
+usefulFor:
+  - { area: "fundamentos de red", pct: 100 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+
+Una tabla de referencia para consolidar los protocolos de aplicación vistos en esta subsección. Útil para tener todo en un solo lugar.
+
+---
+
+## Protocolos de aplicación comunes
+
+| Protocolo | Puerto | Transporte | Cifrado | Función |
+|-----------|--------|-----------|---------|---------|
+| **TELNET** | 23 | TCP | ❌ | Acceso remoto a terminal |
+| **DNS** | 53 | UDP / TCP | ❌ | Resolución de nombres a IPs |
+| **FTP** | 21 / 20 | TCP | ❌ | Transferencia de archivos |
+| **HTTP** | 80 | TCP | ❌ | Páginas web |
+| **HTTPS** | 443 | TCP | ✅ TLS | Páginas web cifradas |
+| **SMTP** | 25 | TCP | ❌ | Envío de email |
+| **POP3** | 110 | TCP | ❌ | Recepción de email — descarga |
+| **IMAP** | 143 | TCP | ❌ | Recepción de email — sincronización |
+
+---
+
+## Qué hace cada uno en una oración
+
+- **TELNET** — terminal remota sin cifrado. Todo lo que escribís viaja visible en la red.
+- **DNS** — traduce `google.com` en una IP. Funciona en background en cada conexión.
+- **FTP** — mueve archivos con dos conexiones separadas: comandos por el 21, datos por el 20.
+- **HTTP** — define el formato de requests y responses entre browser y servidor web.
+- **HTTPS** — HTTP con TLS. El contenido viaja cifrado y el servidor se autentica con certificado.
+- **SMTP** — lleva el email del cliente al servidor, y entre servidores (relay).
+- **POP3** — descarga los emails al cliente y los borra del servidor.
+- **IMAP** — accede a los emails sin borrarlos del servidor. Sincroniza el estado entre dispositivos.
+
+---
+
+## Versiones cifradas
+
+Todos los protocolos de texto plano tienen una versión segura con TLS:
+
+| Puerto | Protocolo cifrado | Reemplaza a |
+|--------|------------------|------------|
+| **443** | HTTPS | HTTP (80) |
+| **587** | SMTP + STARTTLS | SMTP (25) |
+| **993** | IMAPS | IMAP (143) |
+| **995** | POP3S | POP3 (110) |
+| **22** | SSH | TELNET (23) y FTP (21) |
+
+<Callout type="info">
+  El comportamiento de los protocolos es el mismo con o sin TLS — la diferencia es que el tráfico va cifrado y no es legible en Wireshark. SSH es el caso especial: es un protocolo distinto, no una capa sobre TELNET.
+</Callout>

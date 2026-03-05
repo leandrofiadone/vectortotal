@@ -1,0 +1,224 @@
+---
+title: "SMTP, POP3 e IMAP: cómo funciona el email"
+date: 2026-03-05
+excerpt: "El email usa tres protocolos en conjunto: SMTP para enviar, POP3 para descargar y IMAP para sincronizar. Acá te explico cada uno con sesiones reales desde la terminal."
+tags: ["net", "fundamentos"]
+series: network
+subsection: Network Core Protocols
+usefulFor:
+  - { area: "fundamentos de red", pct: 95 }
+  - { area: "análisis de tráfico", pct: 65 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+
+Cuando mandás un email intervienen hasta tres protocolos distintos. No es un solo flujo — hay uno para enviarlo, otro para recibirlo en un dispositivo, y un tercero para mantenerlo sincronizado entre varios.
+
+```
+[Tu cliente de email]
+       │  SMTP (envío)
+       ▼
+[Servidor de correo saliente]
+       │  SMTP (relay)
+       ▼
+[Servidor del destinatario]
+       ├─ POP3 → descarga y borra
+       └─ IMAP → sincroniza, queda en servidor
+```
+
+---
+
+## SMTP: el que envía
+
+<ProtoCard
+  name="SMTP"
+  description="Simple Mail Transfer Protocol — envío y relay de correo. Lo usa el cliente para mandar al servidor, y los servidores para reenviarse entre sí."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Puerto",      value: "25",             highlight: true },
+    { label: "Con cifrado", value: "587 (STARTTLS)",  highlight: true },
+    { label: "Transporte",  value: "TCP" },
+    { label: "RFC",         value: "5321" },
+  ]}
+/>
+
+| Comando | Función |
+|---------|---------|
+| `HELO` / `EHLO` | El cliente se presenta |
+| `MAIL FROM:` | Declara el remitente |
+| `RCPT TO:` | Declara el destinatario |
+| `DATA` | Inicia el cuerpo del mensaje |
+| `.` (punto solo) | Fin del mensaje |
+| `QUIT` | Cierra sesión |
+
+### Enviar un email con telnet
+
+```
+$ telnet <IP> 25
+220 example.thm ESMTP Exim 4.95
+HELO cliente.thm
+250 example.thm Hello cliente.thm
+MAIL FROM:<user@cliente.thm>
+250 OK
+RCPT TO:<strategos@server.thm>
+250 Accepted
+DATA
+354 Enter message, ending with "." on a line by itself
+From: user@cliente.thm
+To: strategos@server.thm
+Subject: Telnet email
+
+Hello. I am using telnet to send you an email!
+.
+250 OK id 1sMrpq-0001Ah-UT
+QUIT
+221 Bye
+```
+
+---
+
+## POP3: descargar y listo
+
+<ProtoCard
+  name="POP3"
+  description="Post Office Protocol v3 — recepción de correo. Descarga los mensajes del servidor al cliente y, por defecto, los borra del servidor."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Puerto",      value: "110",            highlight: true },
+    { label: "Con cifrado", value: "995 (POP3S)",    highlight: true },
+    { label: "Transporte",  value: "TCP" },
+    { label: "Modelo",      value: "Descarga y borra" },
+  ]}
+/>
+
+La analogía: una casilla de correo física. Retirás las cartas y la casilla queda vacía.
+
+| Comando | Función |
+|---------|---------|
+| `USER <usuario>` | Identifica el usuario |
+| `PASS <contraseña>` | Autenticación |
+| `STAT` | Cantidad y tamaño total de mensajes |
+| `LIST` | Lista mensajes con número y tamaño |
+| `RETR <n>` | Descarga el mensaje n |
+| `DELE <n>` | Marca el mensaje n para borrar |
+| `QUIT` | Cierra sesión y aplica borrados |
+
+### Recuperar email con telnet
+
+```
+$ telnet 10.66.181.12 110
++OK Dovecot (Ubuntu) ready.
+USER strategos
++OK
+PASS <contraseña>
++OK Logged in.
+STAT
++OK 3 1264
+LIST
++OK 3 messages:
+1 407
+2 412
+3 445
+RETR 3
++OK 445 octets
+From: user@client.thm
+To: strategos@server.thm
+Subject: Telnet email
+
+Hello. I am using telnet to send you an email!
+.
+QUIT
++OK Logging out.
+```
+
+El mensaje 3 es el que enviamos con SMTP — el ciclo completo: enviaste con SMTP, recuperaste con POP3.
+
+---
+
+## IMAP: sincronización entre dispositivos
+
+<ProtoCard
+  name="IMAP"
+  description="Internet Message Access Protocol — acceso a correo con sincronización. Los mensajes quedan en el servidor y se reflejan en todos los dispositivos del usuario."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Puerto",      value: "143",           highlight: true },
+    { label: "Con cifrado", value: "993 (IMAPS)",   highlight: true },
+    { label: "Transporte",  value: "TCP" },
+    { label: "Modelo",      value: "Sincronización" },
+  ]}
+/>
+
+La diferencia clave con POP3: los mensajes **no se borran del servidor**. El estado (leído, carpetas, borrados) se sincroniza entre todos los dispositivos. Si leés un email en el teléfono, aparece como leído en la laptop también.
+
+| Comando | Función |
+|---------|---------|
+| `LOGIN <usuario> <contraseña>` | Autenticación |
+| `SELECT <buzón>` | Selecciona un buzón (`inbox`) |
+| `FETCH <n> body[]` | Descarga el mensaje n |
+| `MOVE <set> <buzón>` | Mueve mensajes entre carpetas |
+| `LOGOUT` | Cierra sesión |
+
+<Callout type="info">
+  IMAP requiere un prefijo de etiqueta en cada comando (`A`, `B`, `C`…) para emparejar las respuestas del servidor con los comandos del cliente.
+</Callout>
+
+### Recuperar email con IMAP
+
+```
+$ telnet 10.10.41.192 143
+* OK Dovecot (Ubuntu) ready.
+A LOGIN strategos <contraseña>
+A OK Logged in
+B SELECT inbox
+* 4 EXISTS
+* OK [UNSEEN 2] First unseen.
+B OK [READ-WRITE] Select completed.
+C FETCH 3 body[]
+* 3 FETCH (BODY[] {445}
+From: user@client.thm
+To: strategos@server.thm
+Subject: Telnet email
+
+Hello. I am using telnet to send you an email!
+)
+C OK Fetch completed.
+D LOGOUT
+D OK Logout completed.
+```
+
+---
+
+## POP3 vs. IMAP
+
+| | POP3 | IMAP |
+|-|------|------|
+| **Almacenamiento** | Local — borra del servidor | Servidor — sincronizado |
+| **Multi-dispositivo** | No | Sí |
+| **Offline** | Bien — todo queda local | Requiere conexión para cambios |
+| **Uso típico** | Cliente único, conexión esporádica | Gmail, Outlook, servicios modernos |
+
+<Callout type="warning">
+  Los tres protocolos — SMTP (25), POP3 (110), IMAP (143) — transmiten todo en texto plano. Las versiones cifradas son SMTPS (587), POP3S (995) e IMAPS (993).
+</Callout>
+
+---
+
+## Referencia rápida
+
+```bash
+# Conectar manualmente
+telnet <IP> 25     # SMTP
+telnet <IP> 110    # POP3
+telnet <IP> 143    # IMAP
+
+# Filtros Wireshark
+smtp
+pop
+imap
+
+# Lookup de servidores de correo de un dominio
+nslookup -type=MX ejemplo.com
+```

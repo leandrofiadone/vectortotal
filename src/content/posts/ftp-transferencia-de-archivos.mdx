@@ -1,0 +1,135 @@
+---
+title: "FTP: transferencia de archivos"
+date: 2026-03-05
+excerpt: "FTP mueve archivos entre cliente y servidor usando dos conexiones TCP separadas — una para comandos y otra para datos. Todo viaja en texto plano, credenciales incluidas."
+tags: ["net", "fundamentos"]
+series: network
+subsection: Network Core Protocols
+usefulFor:
+  - { area: "fundamentos de red", pct: 90 }
+  - { area: "análisis de tráfico", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+**FTP** (File Transfer Protocol) es un protocolo dedicado a mover archivos entre dos máquinas. A diferencia de HTTP, que fue diseñado para páginas web, FTP es especializado: usa dos conexiones TCP en paralelo para separar los comandos de los datos.
+
+<ProtoCard
+  name="FTP"
+  description="File Transfer Protocol — protocolo de transferencia de archivos. Usa dos conexiones TCP: una para comandos (puerto 21) y otra para los datos (puerto 20 o dinámico en modo pasivo)."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Control",  value: "TCP 21",             highlight: true },
+    { label: "Datos",    value: "TCP 20 / dinámico",  highlight: true },
+    { label: "Cifrado",  value: "Ninguno — texto plano" },
+    { label: "RFC",      value: "959" },
+  ]}
+/>
+
+---
+
+## Dos conexiones
+
+| Conexión | Puerto | Función |
+|----------|--------|---------|
+| **Control** | 21 | Comandos (`USER`, `LIST`, `RETR`…) |
+| **Datos** | 20 (activo) o dinámico (pasivo) | Archivo o listado de directorio |
+
+Cuando ejecutás `ls`, el cliente manda `LIST` por el canal de control y el servidor abre **una nueva conexión** para enviar el listado. Lo mismo pasa con cada descarga.
+
+**Modo activo** — el servidor inicia la conexión de datos hacia el cliente. Tiene problemas con firewalls porque el cliente tiene que aceptar conexiones entrantes.
+
+**Modo pasivo (PASV)** — el cliente inicia ambas conexiones. El servidor responde con un puerto donde conectarse. Es el modo estándar hoy.
+
+```
+227 Entering Passive Mode (10,10,41,192,134,10).
+```
+
+Los últimos dos números codifican el puerto: `134 × 256 + 10 = 34314`.
+
+---
+
+## Comandos del protocolo
+
+| Lo que escribís | Lo que viaja | Función |
+|-----------------|-------------|---------|
+| (login) | `USER anonymous` | Usuario |
+| (password) | `PASS` | Contraseña |
+| `ls` | `LIST` | Listar directorio |
+| `get archivo` | `RETR archivo` | Descargar |
+| `put archivo` | `STOR archivo` | Subir |
+| `type ascii` | `TYPE A` | Modo texto |
+| `quit` | `QUIT` | Cerrar sesión |
+
+<Callout type="info">
+  **Login anónimo**: muchos servidores FTP públicos aceptan el usuario `anonymous` con cualquier contraseña (o vacía). Es acceso público deliberado, no un error.
+</Callout>
+
+---
+
+## Una sesión real
+
+<Step n={1} title="Conexión y login">
+```
+$ ftp 10.66.181.12
+Connected to 10.66.181.12.
+220 (vsFTPd 3.0.5)
+Name: anonymous
+331 Please specify the password.
+Password:
+230 Login successful.
+```
+</Step>
+
+<Step n={2} title="Listar y preparar">
+```
+ftp> ls
+227 Entering Passive Mode (10,10,41,192,134,10).
+150 Here comes the directory listing.
+-rw-r--r--  1 0  0  1480 Jun 27 08:03 coffee.txt
+-rw-r--r--  1 0  0    14 Jun 27 08:04 flag.txt
+-rw-r--r--  1 0  0  1595 Jun 27 08:05 tea.txt
+226 Directory send OK.
+ftp> type ascii
+200 Switching to ASCII mode.
+```
+</Step>
+
+<Step n={3} title="Descargar" last={true}>
+```
+ftp> get coffee.txt
+227 Entering Passive Mode (10,10,41,192,57,100).
+150 Opening BINARY mode data connection for coffee.txt (1480 bytes).
+226 Transfer complete.
+1480 bytes received in 8e-05 secs (18500.00 Kbytes/sec)
+ftp> quit
+221 Goodbye.
+```
+
+Cada `get` abre una nueva conexión pasiva. Hay dos `PASV` distintos: uno para el listado, otro para la descarga.
+</Step>
+
+<Callout type="warning">
+  Toda la sesión — incluyendo usuario y contraseña — viaja en texto plano. Cualquiera en la misma red que capture el tráfico puede leer las credenciales completas.
+</Callout>
+
+---
+
+## Referencia rápida
+
+```bash
+ftp <IP>               # conectar
+ls                     # listar directorio remoto
+get archivo.txt        # descargar
+put archivo.txt        # subir
+type ascii             # modo texto
+type binary            # modo binario (default)
+quit                   # salir
+
+# Filtros Wireshark
+ftp                    # canal de control
+ftp-data               # transferencia de datos
+```
