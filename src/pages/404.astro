@@ -1,0 +1,126 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="404 — No encontrado">
+  <div class="container page-404">
+    <div class="terminal-404">
+      <div class="terminal-bar">
+        <div class="dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <span class="terminal-title">error</span>
+      </div>
+      <div class="terminal-accent-line"></div>
+      <div class="terminal-body">
+        <div class="t-line"><span class="t-prompt">root@kali:~$</span> <span class="t-text">curl -I vectortotal/{Astro.url.pathname}</span></div>
+        <div class="t-line t-error"><span class="t-text">HTTP/1.1 404 Not Found</span></div>
+        <div class="t-line t-output"><span class="t-text">La ruta solicitada no existe.</span></div>
+        <div class="t-line"><span class="t-prompt">root@kali:~$</span> <span class="t-cursor">▋</span></div>
+      </div>
+    </div>
+
+    <h1 class="title-404">404</h1>
+    <p class="desc-404">Página no encontrada. Puede que haya sido movida o nunca haya existido.</p>
+    <div class="actions-404">
+      <a href="/" class="btn-primary">← Volver al inicio</a>
+      <a href="/salas" class="btn-secondary">Ver salas</a>
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .page-404 {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    padding: 80px 24px;
+    text-align: center;
+  }
+
+  .terminal-404 {
+    width: 100%;
+    max-width: 520px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    margin-bottom: 40px;
+  }
+
+  .terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-red    { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green  { background: #28c840; }
+
+  .terminal-title {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .terminal-accent-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    opacity: 0.6;
+  }
+
+  .terminal-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.6;
+    text-align: left;
+  }
+
+  .t-line { display: flex; gap: 8px; align-items: baseline; }
+  .t-prompt { color: var(--accent); flex-shrink: 0; }
+  .t-text { color: var(--text); }
+  .t-output .t-text { color: var(--text-dim); padding-left: 16px; }
+  .t-error .t-text { color: var(--accent2); }
+  .t-cursor { animation: blink 1s step-end infinite; color: var(--accent); }
+
+  .title-404 {
+    font-family: var(--display);
+    font-size: clamp(4rem, 12vw, 8rem);
+    font-weight: 800;
+    color: var(--accent2);
+    line-height: 1;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  .desc-404 {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    max-width: 400px;
+    margin-bottom: 32px;
+  }
+
+  .actions-404 {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>

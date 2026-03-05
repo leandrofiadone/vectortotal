@@ -24,3 +24,8 @@ pnpm-debug.log*
 .idea/
 
 .vercel
+.env
+
+# Screenshots pendientes (no subir al repo)
+pendiente/*
+!pendiente/.gitkeep

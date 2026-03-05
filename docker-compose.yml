@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=vectortotal
+      - GENERIC_TIMEZONE=America/Argentina/Buenos_Aires
+      # API keys disponibles en todos los nodos
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - BLOG_ROOT=/blog
+      - SCREENSHOTS_ROOT=/screenshots
+    volumes:
+      - n8n_data:/home/node/.n8n
+      # Blog montado para que el script pueda escribir posts e imágenes
+      - C:/Users/leanf/OneDrive/Escritorio/0xleandro-blog:/blog
+      # Carpeta donde vas a dejar las screenshots
+      - C:/Users/leanf/Downloads/VectorTotal:/screenshots
+
+volumes:
+  n8n_data:

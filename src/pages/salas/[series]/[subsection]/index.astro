@@ -3,25 +3,13 @@ import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import PostCard from '../../../../components/PostCard.astro';
 import { getCollection } from 'astro:content';
 import { SERIES } from '../../../../data/series';
+import { toSlug } from '../../../../utils/slug';
+import { readingTime } from '../../../../utils/readingTime';
 
-function toSlug(str: string) {
-  return str.toLowerCase().replace(/\s+/g, '-');
-}
 
-function readingTime(body: string): number {
-  const text = body
-    .replace(/^---[\s\S]*?---/, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]+`/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 200));
-}
 
 export async function getStaticPaths() {
-  function toSlug(str: string) {
-    return str.toLowerCase().replace(/\s+/g, '-');
-  }
+
 
   const allPosts = await getCollection('posts', p => !p.data.draft && !!p.data.subsection);
   const paths = new Map<string, { series: string; subsection: string; label: string }>();

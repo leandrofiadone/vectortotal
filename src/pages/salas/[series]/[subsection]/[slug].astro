@@ -1,15 +1,12 @@
 ---
 import PostLayout from '../../../../layouts/PostLayout.astro';
 import { getCollection, type CollectionEntry } from 'astro:content';
+import { toSlug } from '../../../../utils/slug';
 
-function toSlug(str: string) {
-  return str.toLowerCase().replace(/\s+/g, '-');
-}
+
 
 export async function getStaticPaths() {
-  function toSlug(str: string) {
-    return str.toLowerCase().replace(/\s+/g, '-');
-  }
+
 
   const posts = await getCollection('posts', p => !p.data.draft && !!p.data.series && !!p.data.subsection);
   return posts.map(post => ({

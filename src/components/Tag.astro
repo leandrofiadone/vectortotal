@@ -1,15 +1,22 @@
 ---
+import { getTagColor } from '../data/tags';
+
 interface Props {
   name: string;
 }
 
 const { name } = Astro.props;
-const tagClass = `tag-${name.toLowerCase()}`;
 const href = `/tags/${name.toLowerCase()}`;
+const color = getTagColor(name);
 ---
 
-<a href={href} class:list={['tag', tagClass]}>{name}</a>
+<a
+  href={href}
+  class="tag"
+  style={`color: ${color}; border-color: ${color}33; background: ${color}12;`}
+>{name}</a>
 
 <style>
   .tag { text-decoration: none; }
 </style>
+

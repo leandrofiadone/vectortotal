@@ -1,0 +1,63 @@
+{
+  "name": "vectortotal — generador de posts",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "/screenshots/pendiente",
+        "events": ["create"],
+        "watch": "folder"
+      },
+      "id": "trigger",
+      "name": "📁 Nueva carpeta en pendiente",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "notes": "Monitorea /screenshots/pendiente. Cuando caes una carpeta nueva con screenshots, arranca el pipeline."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer la ruta de la carpeta del evento\nconst event = $input.first().json;\nconst folderPath = event.path;\n\n// Solo procesar si es una carpeta (no archivos sueltos)\nif (!event.isDirectory) {\n  return [];\n}\n\nconsole.log('Nueva carpeta detectada:', folderPath);\nreturn [{ json: { folderPath, topic: folderPath.split('/').pop() } }];"
+      },
+      "id": "filter",
+      "name": "🔍 Filtrar carpetas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "command": "cd /blog && node scripts/generate-post.mjs \"{{ $json.folderPath }}\""
+      },
+      "id": "generate",
+      "name": "🤖 Generar post",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "notes": "Ejecuta el script que llama a Claude + Gemini y hace git push"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json;\nconst success = !output.stderr || output.exitCode === 0;\n\nif (success) {\n  console.log('✅ Post generado exitosamente');\n  return [{ json: { status: 'ok', output: output.stdout } }];\n} else {\n  console.error('❌ Error:', output.stderr);\n  return [{ json: { status: 'error', error: output.stderr } }];\n}"
+      },
+      "id": "result",
+      "name": "📊 Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "📁 Nueva carpeta en pendiente": {
+      "main": [[{ "node": "🔍 Filtrar carpetas", "type": "main", "index": 0 }]]
+    },
+    "🔍 Filtrar carpetas": {
+      "main": [[{ "node": "🤖 Generar post", "type": "main", "index": 0 }]]
+    },
+    "🤖 Generar post": {
+      "main": [[{ "node": "📊 Resultado", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -2,6 +2,8 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { getCollection } from 'astro:content';
+import { readingTime } from '../../utils/readingTime';
+import { getTagColor } from '../../data/tags';
 
 export async function getStaticPaths() {
   const posts = (await getCollection('posts')).filter(p => !p.data.draft);
@@ -23,19 +25,11 @@ export async function getStaticPaths() {
   }));
 }
 
-function readingTime(body: string): number {
-  const text = body
-    .replace(/^---[\s\S]*?---/, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]+`/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 200));
-}
+
 
 const { tag } = Astro.params;
 const { posts } = Astro.props;
-const tagClass = `tag-${tag.toLowerCase()}`;
+const tagColor = getTagColor(tag);
 ---
 
 <BaseLayout
@@ -55,7 +49,7 @@ const tagClass = `tag-${tag.toLowerCase()}`;
 
     <header class="tag-header">
       <div class="tag-hero-wrap">
-        <span class:list={['tag', tagClass, 'tag-hero']}>{tag}</span>
+        <span class="tag tag-hero" style={`color: ${tagColor}; border-color: ${tagColor}33; background: ${tagColor}12;`}>{tag}</span>
         <span class="tag-count">{posts.length} {posts.length === 1 ? 'sala' : 'salas'}</span>
       </div>
       <p class="tag-desc">Posts etiquetados con <strong>{tag}</strong></p>

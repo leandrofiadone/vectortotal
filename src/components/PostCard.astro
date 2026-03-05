@@ -1,5 +1,5 @@
 ---
-
+import { getTagColor } from '../data/tags';
 interface Props {
   title: string;
   excerpt: string;
@@ -48,11 +48,14 @@ const subsectionLabel = subsection
     {subsectionLabel && (
       <span class="subsection-badge">{subsectionLabel}</span>
     )}
-    <h3 class="post-title">{title}</h3>
+    <h3 class="post-title" transition:name={`post-title-${slug}`}>{title}</h3>
     <p class="post-excerpt">{excerpt}</p>
     <div class="post-footer">
       <div class="post-tags">
-        {tags.map(t => <span class:list={['tag', `tag-${t.toLowerCase()}`]}>{t}</span>)}
+        {tags.map(t => {
+          const c = getTagColor(t);
+          return <span class="tag" style={`color: ${c}; border-color: ${c}33; background: ${c}12;`}>{t}</span>;
+        })}
         {diff && <span class:list={['diff-badge', diff.cls]}>{diff.label}</span>}
       </div>
       <div class="post-meta">

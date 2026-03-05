@@ -1,6 +1,8 @@
 ---
 import { SERIES } from '../data/series';
 import { getCollection } from 'astro:content';
+import { toSlug } from '../utils/slug';
+import { getTagColor } from '../data/tags';
 
 interface Props {
   categoryCounts: Record<string, number>;
@@ -9,19 +11,6 @@ interface Props {
 const { categoryCounts } = Astro.props;
 
 const categories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
-
-const categoryColors: Record<string, string> = {
-  web:         '#ff4757',
-  net:         '#00e5ff',
-  linux:       '#ffd32a',
-  crypto:      '#a29bfe',
-  osint:       '#55efc4',
-  fundamentos: '#6c5ce7',
-};
-
-function toSlug(str: string) {
-  return str.toLowerCase().replace(/\s+/g, '-');
-}
 
 // Calcular subsecciones por serie
 const allPosts = await getCollection('posts', p => !p.data.draft && !!p.data.subsection);
@@ -80,7 +69,7 @@ const seriesEntries = Object.entries(SERIES);
           <a href={`/tags/${cat}`} class="cat-link">
             <span
               class="cat-dot"
-              style={`background: ${categoryColors[cat] || 'var(--accent)'}`}
+              style={`background: ${getTagColor(cat)}`}
             ></span>
             <span class="cat-name">{cat}</span>
           </a>

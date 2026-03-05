@@ -3,24 +3,14 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { getCollection } from 'astro:content';
 import { SERIES } from '../../data/series';
+import { toSlug } from '../../utils/slug';
+import { readingTime } from '../../utils/readingTime';
 
 export async function getStaticPaths() {
   return Object.keys(SERIES).map(series => ({ params: { series } }));
 }
 
-function readingTime(body: string): number {
-  const text = body
-    .replace(/^---[\s\S]*?---/, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]+`/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 200));
-}
 
-function toSlug(str: string) {
-  return str.toLowerCase().replace(/\s+/g, '-');
-}
 
 const { series: seriesKey } = Astro.params;
 const meta = SERIES[seriesKey];

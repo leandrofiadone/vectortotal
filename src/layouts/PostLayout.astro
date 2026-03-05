@@ -86,7 +86,7 @@ function pctColor(pct: number) {
     <div class:list={['post-grid', !hasSidebar && 'no-sidebar']}>
       <article class="post-article">
         <header class="post-header">
-          <h1 class="post-title">{title}</h1>
+          <h1 class="post-title" transition:name={`post-title-${currentSlug}`}>{title}</h1>
           <div class="post-meta">
             <span class="meta-date">{formattedDate}</span>
           </div>
@@ -409,14 +409,18 @@ function pctColor(pct: number) {
 </style>
 
 <script>
-  const bar = document.getElementById('readingProgress');
-  if (bar) {
-    window.addEventListener('scroll', () => {
-      const doc = document.documentElement;
-      const pct = doc.scrollHeight > doc.clientHeight
-        ? (doc.scrollTop / (doc.scrollHeight - doc.clientHeight)) * 100
-        : 0;
-      bar.style.width = `${pct}%`;
-    }, { passive: true });
-  }
+  document.addEventListener('astro:page-load', () => {
+    const bar = document.getElementById('readingProgress');
+    if (bar) {
+      const onScroll = () => {
+        const doc = document.documentElement;
+        const pct = doc.scrollHeight > doc.clientHeight
+          ? (doc.scrollTop / (doc.scrollHeight - doc.clientHeight)) * 100
+          : 0;
+        bar.style.width = `${pct}%`;
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll(); // set initial state
+    }
+  });
 </script>

@@ -5,14 +5,14 @@ import Sidebar from '../components/Sidebar.astro';
 import Terminal from '../components/Terminal.astro';
 import { getCollection } from 'astro:content';
 import { SERIES } from '../data/series';
+import { toSlug } from '../utils/slug';
+import { readingTime } from '../utils/readingTime';
 
 const allPosts = (await getCollection('posts'))
   .filter(p => !p.data.draft)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
-function toSlug(str: string) {
-  return str.toLowerCase().replace(/\s+/g, '-');
-}
+
 
 // Group by series (preserving newest-first order)
 const seriesMap = new Map<string, typeof allPosts>();
@@ -52,15 +52,7 @@ const terminalLines = [
 
 const totalCategories = Object.keys(categoryCounts).length;
 
-function readingTime(body: string): number {
-  const text = body
-    .replace(/^---[\s\S]*?---/, '')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/`[^`]+`/g, ' ');
-  const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.ceil(words / 200));
-}
+
 ---
 
 <BaseLayout title="vectortotal">

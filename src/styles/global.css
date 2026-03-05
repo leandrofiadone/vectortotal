@@ -86,13 +86,7 @@ a:hover {
   text-transform: uppercase;
 }
 
-.tag-web         { color: #ff4757; border-color: rgba(255,71,87,0.3);   background: rgba(255,71,87,0.07); }
-.tag-net         { color: #00e5ff; border-color: rgba(0,229,255,0.3);   background: rgba(0,229,255,0.07); }
-.tag-linux       { color: #ffd32a; border-color: rgba(255,211,42,0.3);  background: rgba(255,211,42,0.07); }
-.tag-crypto      { color: #a29bfe; border-color: rgba(162,155,254,0.3); background: rgba(162,155,254,0.07); }
-.tag-osint       { color: #55efc4; border-color: rgba(85,239,196,0.3);  background: rgba(85,239,196,0.07); }
-.tag-thm         { color: #fd79a8; border-color: rgba(253,121,168,0.3); background: rgba(253,121,168,0.07); }
-.tag-fundamentos { color: #6c5ce7; border-color: rgba(108,92,231,0.3);  background: rgba(108,92,231,0.07); }
+/* Tag colors are now applied via inline styles from src/data/tags.ts */
 
 /* Difficulty badges */
 .diff-badge {
@@ -389,4 +383,39 @@ a:hover {
 /* Mobile */
 @media (max-width: 768px) {
   .container { padding: 0 16px; }
+}
+
+/* ─── View Transitions ────────────────────────────────── */
+
+/* Default crossfade with a quick duration */
+::view-transition-old(root) {
+  animation: vt-fade-out 200ms ease-out both;
+}
+
+::view-transition-new(root) {
+  animation: vt-slide-in 300ms ease-out both;
+}
+
+@keyframes vt-fade-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes vt-slide-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Post title morph — smooth font-size transition */
+::view-transition-old(post-title-*),
+::view-transition-new(post-title-*) {
+  height: auto;
+  overflow: visible;
+}
+
+/* Keep the logo stable during transitions */
+::view-transition-old(site-logo),
+::view-transition-new(site-logo) {
+  animation: none;
+  mix-blend-mode: normal;
 }

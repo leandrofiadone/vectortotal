@@ -7,9 +7,9 @@ const navLinks = [
 const currentPath = Astro.url.pathname;
 ---
 
-<header class="site-header">
+<header class="site-header" transition:animate="none">
   <div class="container header-inner">
-    <a href="/" class="logo" aria-label="vectortotal — inicio">
+    <a href="/" class="logo" aria-label="vectortotal — inicio" transition:name="site-logo">
       <span class="logo-name">vectortotal</span>
       <span class="cursor">_</span>
     </a>
@@ -200,7 +200,11 @@ const currentPath = Astro.url.pathname;
 </style>
 
 <script>
-  const toggle = document.getElementById('navToggle');
-  const nav = document.querySelector('.nav');
-  toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+  document.addEventListener('astro:page-load', () => {
+    const toggle = document.getElementById('navToggle');
+    const nav = document.querySelector('.nav');
+    // Close menu on page navigation
+    nav?.classList.remove('open');
+    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+  });
 </script>
