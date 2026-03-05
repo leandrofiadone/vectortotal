@@ -18,6 +18,10 @@ function readingTime(body: string): number {
   return Math.max(1, Math.ceil(words / 200));
 }
 
+function toSlug(str: string) {
+  return str.toLowerCase().replace(/\s+/g, '-');
+}
+
 const { series: seriesKey } = Astro.params;
 const meta = SERIES[seriesKey];
 
@@ -65,67 +69,55 @@ let globalNum = 1;
         <h1 class="area-title">{meta?.title ?? seriesKey}</h1>
         {meta?.description && <p class="area-desc">{meta.description}</p>}
       </div>
-      <span class="area-count">{posts.length} {posts.length === 1 ? 'sala' : 'salas'}</span>
+      <span class="area-count">{posts.length} {posts.length === 1 ? 'nota' : 'notas'}</span>
     </header>
 
     {posts.length === 0 && (
-      <p class="empty">No hay salas en esta área todavía.</p>
+      <p class="empty">No hay notas en esta área todavía.</p>
     )}
 
     {hasSubsections ? (
-      <>
-        {[...subsectionMap.entries()].map(([subKey, subPosts]) => (
-          <section class="subsection">
-            <div class="subsection-header">
-              <span class="subsection-title">{subKey}</span>
-              <span class="subsection-count">{subPosts.length}</span>
-            </div>
-            <div class="post-list">
-              {subPosts.map((post) => {
-                const n = globalNum++;
-                return (
-                  <PostCard
-                    title={post.data.title}
-                    excerpt={post.data.excerpt}
-                    date={post.data.date}
-                    tags={post.data.tags}
-                    slug={post.slug}
-                    series={seriesKey}
-                    num={n}
-                    readingTime={readingTime(post.body)}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        ))}
-        {noSubsection.length > 0 && (
-          <section class="subsection">
-            <div class="subsection-header">
-              <span class="subsection-title">General</span>
-              <span class="subsection-count">{noSubsection.length}</span>
-            </div>
-            <div class="post-list">
-              {noSubsection.map((post) => {
-                const n = globalNum++;
-                return (
-                  <PostCard
-                    title={post.data.title}
-                    excerpt={post.data.excerpt}
-                    date={post.data.date}
-                    tags={post.data.tags}
-                    slug={post.slug}
-                    series={seriesKey}
-                    num={n}
-                    readingTime={readingTime(post.body)}
-                  />
-                );
-              })}
-            </div>
-          </section>
-        )}
-      </>
+      // Sala con subsecciones: mostrar cards de subsección
+      <div class="subsection-grid">
+        {[...subsectionMap.entries()].map(([subKey, subPosts]) => {
+          const subSlug = toSlug(subKey);
+          const preview = subPosts.slice(0, 3);
+          return (
+            <a href={`/salas/${seriesKey}/${subSlug}`} class="sub-card">
+              <div class="card-accent" style={`background: ${meta?.color}`}></div>
+              <div class="card-body">
+                <div class="card-head">
+                  <div class="card-titles">
+                    <h2 class="card-title">{subKey}</h2>
+                  </div>
+                  <span class="card-count">{subPosts.length}</span>
+                </div>
+                {preview.length > 0 && (
+                  <ul class="card-preview">
+                    {preview.map(p => (
+                      <li class="preview-item">
+                        <span class="preview-dot">·</span>
+                        <span class="preview-title">{p.data.title}</span>
+                      </li>
+                    ))}
+                    {subPosts.length > 3 && (
+                      <li class="preview-item preview-more">
+                        <span class="preview-dot">·</span>
+                        <span>+{subPosts.length - 3} más</span>
+                      </li>
+                    )}
+                  </ul>
+                )}
+                <div class="card-footer">
+                  <span class="card-cta">explorar →</span>
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
     ) : (
+      // Sala sin subsecciones: listar posts directamente
       <div class="post-list">
         {posts.map((post, i) => (
           <PostCard
@@ -232,40 +224,122 @@ let globalNum = 1;
     align-self: flex-start;
   }
 
-  /* Subsecciones */
-  .subsection {
-    margin-bottom: 40px;
+  /* Grid de subsecciones */
+  .subsection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
   }
 
-  .subsection-header {
+  .sub-card {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 14px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
+    flex-direction: column;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.15s;
   }
 
-  .subsection-title {
-    font-family: var(--mono);
-    font-size: 0.72rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
+  .sub-card:hover {
+    border-color: var(--border-light, rgba(255,255,255,0.12));
+    transform: translateY(-2px);
+  }
+
+  .card-accent {
+    height: 3px;
+    width: 100%;
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
     flex: 1;
   }
 
-  .subsection-count {
+  .card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+
+  .card-titles { flex: 1; min-width: 0; }
+
+  .card-title {
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+
+  .card-count {
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     color: var(--text-dim);
     background: var(--bg3);
     border: 1px solid var(--border);
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 2px;
+    white-space: nowrap;
+    align-self: flex-start;
   }
 
-  /* Posts */
+  .card-preview {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px;
+    background: var(--bg3);
+    border-radius: 4px;
+  }
+
+  .preview-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .preview-dot {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .preview-title {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .preview-more {
+    opacity: 0.6;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+  }
+
+  .card-footer { margin-top: auto; }
+
+  .card-cta {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    transition: color 0.2s;
+  }
+
+  .sub-card:hover .card-cta { color: var(--accent); }
+
+  /* Posts (sin subsecciones) */
   .post-list {
     display: flex;
     flex-direction: column;
@@ -276,5 +350,9 @@ let globalNum = 1;
     font-family: var(--mono);
     color: var(--text-dim);
     font-size: 0.85rem;
+  }
+
+  @media (max-width: 640px) {
+    .subsection-grid { grid-template-columns: 1fr; }
   }
 </style>

@@ -8,17 +8,22 @@ interface PostItem {
 
 interface Props {
   series: string;
+  subsection?: string;
   posts: PostItem[];
   currentSlug: string;
 }
 
-const { series, posts, currentSlug } = Astro.props;
+const { series, subsection, posts, currentSlug } = Astro.props;
 const meta = SERIES[series];
 const sorted = [...posts].sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+const backHref = subsection ? `/salas/${series}/${subsection}` : `/salas/${series}`;
+const postHref = (slug: string) => subsection
+  ? `/salas/${series}/${subsection}/${slug}`
+  : `/salas/${series}/${slug}`;
 ---
 
 <div class="series-nav">
-  <a href={`/salas/${series}`} class="series-header">
+  <a href={backHref} class="series-header">
     <span class="series-icon">{meta?.icon ?? '📚'}</span>
     <div class="series-title-wrap">
       <span class="series-label">área</span>
@@ -29,7 +34,7 @@ const sorted = [...posts].sort((a, b) => a.data.date.valueOf() - b.data.date.val
   <ol class="series-list">
     {sorted.map((post, i) => (
       <li class:list={['series-item', post.slug === currentSlug && 'current']}>
-        <a href={`/salas/${series}/${post.slug}`} class="series-link">
+        <a href={postHref(post.slug)} class="series-link">
           <span class="series-num">{String(i + 1).padStart(2, '0')}</span>
           <span class="series-post-title">{post.data.title}</span>
         </a>

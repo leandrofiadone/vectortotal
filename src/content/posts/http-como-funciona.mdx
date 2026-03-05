@@ -1,0 +1,192 @@
+---
+title: "HTTP y HTTPS: cómo tu browser habla con los servidores"
+date: 2026-03-04
+excerpt: "Cada vez que abrís una página web, tu browser y el servidor intercambian mensajes siguiendo reglas precisas. Acá te explico HTTP, sus métodos, cómo analizarlo con Wireshark y por qué HTTPS importa."
+tags: ["net", "web", "fundamentos"]
+series: network
+subsection: Network Core Protocols
+usefulFor:
+  - { area: "fundamentos de red", pct: 100 }
+  - { area: "análisis de tráfico", pct: 80 }
+  - { area: "pentesting web", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Cada vez que abrís una página web pasan cosas invisibles: tu browser manda peticiones estructuradas, el servidor responde con headers y datos, y vos solo ves el resultado final renderizado. HTTP es el protocolo que regula todo ese intercambio.
+
+<ProtoCard
+  name="HTTP / HTTPS"
+  description="Hypertext Transfer Protocol — define cómo el browser y el servidor web se comunican. HTTPS agrega cifrado TLS sobre el mismo protocolo."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Transporte",     value: "TCP",              highlight: true },
+    { label: "Puerto HTTP",    value: "80",               highlight: true },
+    { label: "Puerto HTTPS",   value: "443",              highlight: true },
+    { label: "Alternos",       value: "8080, 8443"        },
+    { label: "Tipo",           value: "Request / Response" },
+    { label: "RFC",            value: "9110 (HTTP/1.1)"   },
+  ]}
+/>
+
+---
+
+## El ciclo request / response
+
+HTTP funciona en pares: el cliente siempre inicia, el servidor siempre responde. Nunca al revés.
+
+<Step n={1} title="El browser arma el request">
+  Incluye el **método** (qué quiere hacer), la **ruta** (qué recurso pide), y **headers** con información adicional: qué tipo de contenido acepta, en qué idioma, desde qué browser, etc.
+</Step>
+
+<Step n={2} title="El servidor procesa y responde">
+  Devuelve un **código de estado** (200, 404, 500…), sus propios **headers** (tipo de contenido, fecha, versión del servidor), y el **body** con el recurso pedido — el HTML, la imagen, el JSON.
+</Step>
+
+<Step n={3} title="El browser renderiza" last={true}>
+  Interpreta el HTML, descubre recursos adicionales (CSS, JS, imágenes) y hace **nuevos requests** por cada uno. Una sola página puede generar decenas de intercambios HTTP.
+</Step>
+
+---
+
+## Los métodos HTTP
+
+En cada request, el cliente indica al servidor qué quiere hacer con un **método**:
+
+| Método | Acción | Cuándo aparece |
+|--------|--------|---------------|
+| `GET` | Pide un recurso | Cargar una página, una imagen, un archivo |
+| `POST` | Envía datos nuevos | Formularios, uploads, login |
+| `PUT` | Crea o sobreescribe | APIs REST — actualizar un registro |
+| `DELETE` | Borra un recurso | APIs REST — eliminar un registro |
+
+En el uso cotidiano, `GET` y `POST` son el 99% del tráfico. `PUT` y `DELETE` aparecen en APIs.
+
+---
+
+## Hablar HTTP a mano
+
+Para entender el protocolo de verdad, nada mejor que hablarlo directamente. Con `telnet` podés enviar un request HTTP sin browser:
+
+```bash
+telnet MACHINE_IP 80
+```
+
+Una vez conectado, escribís el request y apretás Enter dos veces:
+
+```
+GET / HTTP/1.1
+Host: anything
+
+```
+
+El servidor responde con headers y el HTML de la página raíz. Si querés un archivo específico:
+
+```
+GET /pagina.html HTTP/1.1
+Host: anything
+
+```
+
+<Callout type="tip">
+  Esta técnica es útil en pentesting: si el servidor responde al request manual, confirmás que el servicio HTTP está activo y accesible. También podés observar exactamente qué headers expone.
+</Callout>
+
+---
+
+## Lo que Wireshark revela
+
+Cuando el browser carga una página, el intercambio real tiene mucho más contenido del que ves. En Wireshark, el **request** (rojo) y la **response** (azul) se ven así:
+
+**→ Request del browser:**
+```http
+GET / HTTP/1.1
+Host: 10.10.41.192
+Connection: keep-alive
+Upgrade-Insecure-Requests: 1
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ...
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,...
+Accept-Encoding: gzip, deflate
+Accept-Language: en-GB,en;q=0.9,en-US;q=0.8,en;q=0.7
+```
+
+**← Respuesta del servidor:**
+```http
+HTTP/1.1 200 OK
+Server: nginx/1.18.0 (Ubuntu)
+Date: Thu, 27 Jun 2024 07:00:56 GMT
+Content-Type: text/html
+Last-Modified: Thu, 27 Jun 2024 06:58:01 GMT
+Transfer-Encoding: chunked
+Connection: keep-alive
+ETag: W/"667d0d79-8cc"
+Content-Encoding: gzip
+
+<!DOCTYPE html>
+<html lang="en">
+...
+```
+
+Todo eso ocurre antes de que veas una sola letra en pantalla.
+
+<Callout type="info">
+  El header `Server: nginx/1.18.0 (Ubuntu)` revela la versión exacta del servidor web y el SO. En producción esto es una mala práctica — facilita identificar CVEs conocidos de esa versión específica.
+</Callout>
+
+---
+
+## Códigos de estado
+
+Cada respuesta incluye un código de 3 dígitos. El primer dígito indica la categoría:
+
+| Rango | Qué significa | Ejemplos frecuentes |
+|-------|--------------|-------------------|
+| `2xx` | **Éxito** — todo salió bien | `200 OK`, `201 Created` |
+| `3xx` | **Redirección** — el recurso está en otro lado | `301 Moved Permanently`, `302 Found` |
+| `4xx` | **Error del cliente** — el request tiene un problema | `401 Unauthorized`, `403 Forbidden`, `404 Not Found` |
+| `5xx` | **Error del servidor** — el servidor falló | `500 Internal Server Error`, `503 Service Unavailable` |
+
+<Callout type="tip">
+  En pentesting, los códigos de respuesta son muy informativos: un `403` confirma que el recurso existe pero está restringido, un `401` indica que requiere autenticación, y un `500` puede revelar detalles del stack interno si el servidor no está bien configurado.
+</Callout>
+
+---
+
+## HTTP vs HTTPS
+
+HTTP envía todo en **texto plano** — cualquiera en la misma red que capture el tráfico puede leer el contenido completo. HTTPS resuelve esto agregando **TLS** entre HTTP y TCP.
+
+| | HTTP | HTTPS |
+|-|------|-------|
+| **Puerto** | 80 | 443 |
+| **Cifrado** | No — texto plano | Sí — TLS |
+| **Autenticación del servidor** | No | Sí — certificado digital |
+| **Integridad** | No — modificable en tránsito | Sí — detecta alteraciones |
+
+<Callout type="danger">
+  En redes WiFi públicas, interceptar tráfico HTTP plano es trivial con Wireshark o mitmproxy. Cualquier cosa que mandes por HTTP — credenciales incluidas — puede ser capturada por cualquiera en la misma red.
+</Callout>
+
+---
+
+## Comandos de referencia
+
+```bash
+# GET manual — muestra headers y body completos
+curl -v http://ejemplo.com/
+
+# Solo los headers de respuesta (sin body)
+curl -I http://ejemplo.com/
+
+# POST enviando datos de formulario
+curl -X POST -d "user=admin&pass=1234" http://ejemplo.com/login
+
+# Filtrar solo tráfico HTTP en Wireshark
+http
+
+# Capturar HTTP en tiempo real con tcpdump
+tcpdump -i eth0 port 80 -A -n
+```

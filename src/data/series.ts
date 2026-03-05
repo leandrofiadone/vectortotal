@@ -6,9 +6,9 @@ export interface SeriesMeta {
 }
 
 export const SERIES: Record<string, SeriesMeta> = {
-  'network-essentials': {
-    title: 'Network Essentials',
-    description: 'Fundamentos de redes: protocolos, tráfico y análisis de paquetes.',
+  'network': {
+    title: 'Network',
+    description: 'Fundamentos de redes y protocolos core: desde cómo se asignan IPs hasta cómo funciona la web.',
     icon: '🌐',
     color: '#00e5ff',
   },

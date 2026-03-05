@@ -1,0 +1,199 @@
+---
+title: "DNS y WHOIS: cómo los dominios se resuelven a IPs"
+date: 2026-03-04
+excerpt: "Nadie memoriza IPs. El DNS convierte nombres como google.com en direcciones numéricas. Y si querés saber quién está detrás de un dominio, WHOIS te da esa info. Acá te explico cómo funciona todo."
+tags: ["net", "fundamentos"]
+series: network
+subsection: Network Core Protocols
+usefulFor:
+  - { area: "fundamentos de red", pct: 100 }
+  - { area: "reconocimiento (OSINT)", pct: 85 }
+  - { area: "pentesting", pct: 60 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import ProtoCard from '../../components/ProtoCard.astro';
+import Step from '../../components/Step.astro';
+
+Cuando escribís `google.com` en el browser, lo primero que ocurre — antes de cargar cualquier página — es una consulta DNS. El sistema necesita convertir ese nombre legible en una dirección IP real para poder establecer la conexión.
+
+<ProtoCard
+  name="DNS"
+  description="Domain Name System — traduce nombres de dominio legibles (google.com) a direcciones IP numéricas. Opera como la agenda de contactos de Internet."
+  layer="Aplicación (L7)"
+  facts={[
+    { label: "Transporte",   value: "UDP (principalmente)",  highlight: true },
+    { label: "Fallback",     value: "TCP",                   highlight: true },
+    { label: "Puerto",       value: "53",                    highlight: true },
+    { label: "RFC",          value: "1034 / 1035"            },
+    { label: "Tipo",         value: "Query / Response"       },
+  ]}
+/>
+
+---
+
+## Cómo funciona la resolución
+
+Escribís `example.com` y el sistema ejecuta este proceso en milisegundos:
+
+<Step n={1} title="Consulta al resolver local">
+  Tu sistema operativo pregunta al **resolver DNS local** (generalmente el router o `127.0.0.53`). Si ya resolvió ese dominio recientemente, devuelve la respuesta desde caché.
+</Step>
+
+<Step n={2} title="El resolver consulta hacia arriba">
+  Si no está en caché, el resolver pregunta a un servidor DNS autoritativo. La cadena sube: resolver → servidor raíz → servidor TLD (`.com`, `.org`) → servidor autoritativo del dominio.
+</Step>
+
+<Step n={3} title="Respuesta y caché" last={true}>
+  El servidor autoritativo devuelve el registro pedido. El resolver lo almacena en caché según el **TTL** (Time To Live) del registro, y se lo entrega a tu sistema.
+</Step>
+
+---
+
+## Los tipos de registros DNS
+
+Un dominio puede tener varios registros, cada uno con una función distinta:
+
+| Registro | Qué hace | Ejemplo |
+|----------|----------|---------|
+| **A** | Mapea hostname a IPv4 | `example.com → 93.184.215.14` |
+| **AAAA** | Mapea hostname a IPv6 (quad-A) | `example.com → 2606:2800:...` |
+| **CNAME** | Alias — apunta un dominio a otro dominio | `www.example.com → example.com` |
+| **MX** | Servidor de correo del dominio | Necesario para recibir emails |
+
+<Callout type="info">
+  Cuando escribís `example.com` en el browser, se consulta el registro **A**. Cuando tu cliente de correo manda un email a `user@example.com`, consulta el registro **MX**. Son consultas distintas para propósitos distintos — mismo dominio, diferente tipo de registro.
+</Callout>
+
+---
+
+## Resolución en la práctica: nslookup
+
+`nslookup` consulta registros DNS directamente desde la línea de comandos:
+
+```bash
+nslookup www.example.com
+```
+
+```
+Server:         127.0.0.53
+Address:        127.0.0.53#53
+
+Non-authoritative answer:
+Name:   www.example.com
+Address: 93.184.215.14
+Name:   www.example.com
+Address: 2606:2800:21f:cb07:6820:80da:af6b:8b2c
+```
+
+El servidor `127.0.0.53` es el resolver local. La respuesta **"non-authoritative"** indica que vino del caché o de un intermediario — no directamente del servidor que administra el dominio.
+
+Para consultar un tipo de registro específico:
+
+```bash
+nslookup -type=MX example.com       # servidores de correo
+nslookup -type=AAAA example.com     # solo IPv6
+nslookup example.com 8.8.8.8        # usar el DNS de Google
+```
+
+---
+
+## Qué pasa a nivel de paquetes
+
+Una sola consulta `nslookup www.example.com` genera cuatro paquetes — el cliente consulta A y AAAA en paralelo:
+
+```bash
+tshark -r dns-query.pcapng -Nn
+```
+
+```
+1  0.000000  192.168.66.89 → 192.168.66.1  DNS  Standard query  A    www.example.com
+2  0.059049  192.168.66.1  → 192.168.66.89 DNS  Standard query response  A  93.184.215.14
+3  0.059721  192.168.66.89 → 192.168.66.1  DNS  Standard query  AAAA www.example.com
+4  0.101568  192.168.66.1  → 192.168.66.89 DNS  Standard query response  AAAA 2606:2800:21f:...
+```
+
+- Paquetes **1 y 3** — queries del cliente (A e IPv6 en paralelo)
+- Paquetes **2 y 4** — respuestas del servidor
+- Todo por UDP puerto 53, resuelto en menos de **110 ms**
+
+---
+
+## WHOIS: quién registró ese dominio
+
+DNS resuelve *a dónde va* un dominio. **WHOIS** responde *quién lo registró*.
+
+Cuando alguien registra un dominio está obligado a proveer datos de contacto — esa información es pública y consultable:
+
+```bash
+whois ejemplo.com
+```
+
+```
+Domain Name: EJEMPLO.COM
+Creation Date: 1993-04-02T00:00:00Z
+Registrar Registration Expiration Date: 2026-10-20T14:56:17Z
+Registrar: GoDaddy.com, LLC
+
+Registrant Name: Registration Private
+Registrant Organization: Domains By Proxy, LLC
+```
+
+Lo que podés extraer:
+
+- **`Creation Date`** — cuándo fue registrado el dominio
+- **`Expiration Date`** — cuándo vence (útil para detectar dominios abandonados)
+- **`Registrar`** — empresa que gestiona el registro
+- **`Registrant`** — quién lo registró (nombre, org, email, teléfono)
+
+<Callout type="info">
+  Muchos dominios usan **privacy protection** (como "Domains By Proxy" en el ejemplo). Los datos reales del dueño se reemplazan por los del servicio de privacidad. El dominio sigue funcionando — solo que no ves quién lo controla realmente.
+</Callout>
+
+---
+
+## WHOIS en reconocimiento
+
+En la fase de **reconocimiento** de un pentest o investigación OSINT, WHOIS es uno de los primeros pasos porque permite:
+
+- Identificar la **organización dueña** de un activo (¿este dominio es realmente de la empresa objetivo?)
+- Encontrar **emails** del registrante (útil para correlacionar identidades o ingeniería social en engagements autorizados)
+- Detectar dominios **próximos a vencer** — un atacante puede registrarlos para suplantar la identidad
+- Correlacionar **otros dominios** registrados por la misma entidad
+
+```bash
+whois objetivo.com           # WHOIS de dominio
+whois -h whois.arin.net 8.8.8.8  # WHOIS de una IP
+```
+
+<Callout type="warning">
+  El WHOIS de IPs (ARIN en Norteamérica, RIPE en Europa, LACNIC en Latinoamérica) te dice a qué organización pertenece un bloque de direcciones. Útil para saber si una IP es de AWS, Cloudflare, o de la propia empresa objetivo.
+</Callout>
+
+---
+
+## Comandos de referencia
+
+```bash
+# DNS — consultas básicas
+nslookup ejemplo.com                 # registro A
+nslookup -type=MX ejemplo.com        # servidores de correo
+nslookup ejemplo.com 8.8.8.8         # forzar DNS de Google
+
+# dig — alternativa más detallada
+dig ejemplo.com                      # registro A con TTL y flags
+dig MX ejemplo.com                   # registro MX
+dig AAAA ejemplo.com +short          # solo la IPv6, sin decoración
+
+# WHOIS
+whois ejemplo.com                    # info de dominio
+whois 1.1.1.1                        # info de IP (Cloudflare)
+
+# Captura de tráfico DNS
+tcpdump -i eth0 port 53 -n           # tiempo real
+tshark -r captura.pcap -Y dns        # filtrar DNS en un archivo
+
+# Filtro en Wireshark
+dns
+```

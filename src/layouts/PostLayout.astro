@@ -16,6 +16,7 @@ interface Props {
   excerpt: string;
   headings?: { depth: number; slug: string; text: string }[];
   series?: string;
+  subsection?: string;
   seriesPosts?: CollectionEntry<'posts'>[];
   currentSlug?: string;
   usefulFor?: UsefulFor[];
@@ -28,6 +29,7 @@ const {
   excerpt,
   headings = [],
   series,
+  subsection,
   seriesPosts = [],
   currentSlug = '',
   usefulFor = [],
@@ -69,6 +71,12 @@ function pctColor(pct: number) {
         <>
           <span class="bc-sep">/</span>
           <span class="bc-item"><a href={`/salas/${series}`}>{series}</a></span>
+        </>
+      )}
+      {subsection && (
+        <>
+          <span class="bc-sep">/</span>
+          <span class="bc-item"><a href={`/salas/${series}/${subsection}`}>{subsection}</a></span>
         </>
       )}
       <span class="bc-sep">/</span>
@@ -115,13 +123,13 @@ function pctColor(pct: number) {
           <nav class="post-nav">
             <div class="post-nav-inner">
               {prevPost ? (
-                <a href={`/salas/${series}/${prevPost.slug}`} class="post-nav-link prev">
+                <a href={subsection ? `/salas/${series}/${subsection}/${prevPost.slug}` : `/salas/${series}/${prevPost.slug}`} class="post-nav-link prev">
                   <span class="nav-dir">← anterior</span>
                   <span class="nav-title">{prevPost.data.title}</span>
                 </a>
               ) : <div />}
               {nextPost ? (
-                <a href={`/salas/${series}/${nextPost.slug}`} class="post-nav-link next">
+                <a href={subsection ? `/salas/${series}/${subsection}/${nextPost.slug}` : `/salas/${series}/${nextPost.slug}`} class="post-nav-link next">
                   <span class="nav-dir">siguiente →</span>
                   <span class="nav-title">{nextPost.data.title}</span>
                 </a>
@@ -134,7 +142,7 @@ function pctColor(pct: number) {
       {hasSidebar && (
         <aside class="post-sidebar">
           {series && seriesPosts.length > 0 && (
-            <SeriesNav series={series} posts={seriesPosts} currentSlug={currentSlug} />
+            <SeriesNav series={series} subsection={subsection} posts={seriesPosts} currentSlug={currentSlug} />
           )}
           {toc.length > 0 && (
             <div class="toc-widget">

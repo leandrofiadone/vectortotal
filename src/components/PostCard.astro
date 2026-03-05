@@ -8,12 +8,17 @@ interface Props {
   difficulty?: 'easy' | 'medium' | 'hard';
   slug: string;
   series?: string;
+  subsection?: string;
   num: number;
   readingTime?: number;
 }
 
-const { title, excerpt, date, tags, difficulty, slug, series, num, readingTime } = Astro.props;
-const href = series ? `/salas/${series}/${slug}` : `/salas/${slug}`;
+const { title, excerpt, date, tags, difficulty, slug, series, subsection, num, readingTime } = Astro.props;
+const href = series && subsection
+  ? `/salas/${series}/${subsection}/${slug}`
+  : series
+    ? `/salas/${series}/${slug}`
+    : `/salas/${slug}`;
 
 const difficultyMap = {
   easy:   { label: 'fácil',  cls: 'diff-easy' },
@@ -30,11 +35,19 @@ const formattedDate = date.toLocaleDateString('es-AR', {
 });
 
 const numStr = String(num).padStart(2, '0');
+
+// Reconstruir label legible desde slug: "network-essentials" → "Network Essentials"
+const subsectionLabel = subsection
+  ? subsection.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  : null;
 ---
 
 <a href={href} class="post-card">
   <span class="post-num">#{numStr}</span>
   <div class="post-body">
+    {subsectionLabel && (
+      <span class="subsection-badge">{subsectionLabel}</span>
+    )}
     <h3 class="post-title">{title}</h3>
     <p class="post-excerpt">{excerpt}</p>
     <div class="post-footer">
@@ -102,6 +115,17 @@ const numStr = String(num).padStart(2, '0');
 
   .post-body {
     min-width: 0;
+  }
+
+  .subsection-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    opacity: 0.7;
+    margin-bottom: 4px;
   }
 
   .post-title {

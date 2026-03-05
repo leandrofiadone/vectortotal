@@ -1,5 +1,6 @@
 ---
 import { SERIES } from '../data/series';
+import { getCollection } from 'astro:content';
 
 interface Props {
   categoryCounts: Record<string, number>;
@@ -18,6 +19,22 @@ const categoryColors: Record<string, string> = {
   fundamentos: '#6c5ce7',
 };
 
+function toSlug(str: string) {
+  return str.toLowerCase().replace(/\s+/g, '-');
+}
+
+// Calcular subsecciones por serie
+const allPosts = await getCollection('posts', p => !p.data.draft && !!p.data.subsection);
+const subsectionsBySeries = new Map<string, { label: string; slug: string }[]>();
+for (const post of allPosts) {
+  const series = post.data.series!;
+  const label = post.data.subsection!;
+  const slug = toSlug(label);
+  if (!subsectionsBySeries.has(series)) subsectionsBySeries.set(series, []);
+  const existing = subsectionsBySeries.get(series)!;
+  if (!existing.find(s => s.slug === slug)) existing.push({ label, slug });
+}
+
 const seriesEntries = Object.entries(SERIES);
 ---
 
@@ -26,14 +43,31 @@ const seriesEntries = Object.entries(SERIES);
   <div class="widget">
     <h4 class="widget-title"><span class="accent">$</span> áreas</h4>
     <ul class="series-list">
-      {seriesEntries.map(([key, meta]) => (
-        <li class="series-item">
-          <a href={`/salas/${key}`} class="series-link">
-            <span class="series-icon">{meta.icon}</span>
-            <span class="series-name">{meta.title}</span>
-          </a>
-        </li>
-      ))}
+      {seriesEntries.map(([key, meta]) => {
+        const subsections = subsectionsBySeries.get(key) ?? [];
+        const hasSubsections = subsections.length > 0;
+        return (
+          <li class="series-item">
+            <a href={`/salas/${key}`} class="series-link">
+              <span class="series-icon">{meta.icon}</span>
+              <span class="series-name">{meta.title}</span>
+              {hasSubsections && <span class="series-chevron">›</span>}
+            </a>
+            {hasSubsections && (
+              <ul class="subsection-list">
+                {subsections.map(sub => (
+                  <li>
+                    <a href={`/salas/${key}/${sub.slug}`} class="subsection-link">
+                      <span class="sub-dot">·</span>
+                      {sub.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
     </ul>
   </div>
 
@@ -116,7 +150,52 @@ const seriesEntries = Object.entries(SERIES);
   }
 
   .series-icon { font-size: 0.95rem; }
-  .series-name { font-family: var(--body); font-size: 0.82rem; }
+  .series-name { font-family: var(--body); font-size: 0.82rem; flex: 1; }
+
+  .series-chevron {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    opacity: 0.5;
+    margin-left: auto;
+    transition: transform 0.2s;
+  }
+
+  .series-item:hover .series-chevron { opacity: 1; }
+
+  .subsection-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding-left: 26px;
+    margin-top: 2px;
+    margin-bottom: 4px;
+  }
+
+  .subsection-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.76rem;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 3px 6px;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .subsection-link:hover {
+    color: var(--accent);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .sub-dot {
+    font-family: var(--mono);
+    color: var(--accent);
+    opacity: 0.5;
+    font-size: 0.8rem;
+  }
 
   /* Categories */
   .cat-list {

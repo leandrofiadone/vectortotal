@@ -10,6 +10,10 @@ const allPosts = (await getCollection('posts'))
   .filter(p => !p.data.draft)
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
+function toSlug(str: string) {
+  return str.toLowerCase().replace(/\s+/g, '-');
+}
+
 // Group by series (preserving newest-first order)
 const seriesMap = new Map<string, typeof allPosts>();
 const ungrouped: typeof allPosts = [];
@@ -127,6 +131,7 @@ function readingTime(body: string): number {
                   tags={post.data.tags}
                   slug={post.slug}
                   series={seriesKey}
+                  subsection={post.data.subsection ? toSlug(post.data.subsection) : undefined}
                   num={i + 1}
                   readingTime={readingTime(post.body)}
                 />
@@ -143,6 +148,7 @@ function readingTime(body: string): number {
           tags={post.data.tags}
           slug={post.slug}
           series={post.data.series}
+          subsection={post.data.subsection ? toSlug(post.data.subsection) : undefined}
           num={i + 1}
           readingTime={readingTime(post.body)}
         />
