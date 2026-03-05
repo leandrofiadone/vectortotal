@@ -12,7 +12,7 @@ draft: false
 
 import Callout from '../../components/Callout.astro';
 
-Una tabla de referencia para consolidar los protocolos de aplicación vistos en esta subsección. Útil para tener todo en un solo lugar.
+DNS, HTTP, FTP, SMTP, POP3, IMAP. Protocolos distintos, propósitos distintos — pero todos comparten una característica: fueron diseñados para funcionar, no para ser seguros. El cifrado llegó después, como una capa encima. Este post junta todo lo visto en la subsección en un solo lugar.
 
 ---
 
@@ -59,3 +59,7 @@ Todos los protocolos de texto plano tienen una versión segura con TLS:
 <Callout type="info">
   El comportamiento de los protocolos es el mismo con o sin TLS — la diferencia es que el tráfico va cifrado y no es legible en Wireshark. SSH es el caso especial: es un protocolo distinto, no una capa sobre TELNET.
 </Callout>
+
+---
+
+En producción, la mayoría de estos servicios corren sobre las versiones cifradas. Pero en redes internas, entornos legacy, y configuraciones por defecto mal mantenidas, los puertos sin cifrado siguen apareciendo. Entender qué protocolo corre en cada puerto — y qué expone en texto plano — es la base para leer una red, no solo conectarse a ella.

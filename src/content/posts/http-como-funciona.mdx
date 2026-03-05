@@ -16,7 +16,7 @@ import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
 
-Cada vez que abrís una página web pasan cosas invisibles: tu browser manda peticiones estructuradas, el servidor responde con headers y datos, y vos solo ves el resultado final renderizado. HTTP es el protocolo que regula todo ese intercambio.
+Tenés la IP. DNS te la dio. Ahora si abrís una conexión a esa dirección en el puerto 80, el servidor del otro lado va a esperar que le hables en un formato específico. No cualquier texto — HTTP. Un protocolo que define exactamente cómo se pide un recurso y cómo se responde. Y que, en su versión sin cifrado, cualquiera en la red puede leer completo.
 
 <ProtoCard
   name="HTTP / HTTPS"
@@ -54,7 +54,7 @@ HTTP funciona en pares: el cliente siempre inicia, el servidor siempre responde.
 
 ## Los métodos HTTP
 
-En cada request, el cliente indica al servidor qué quiere hacer con un **método**:
+El método es lo primero que aparece en cualquier request. Le dice al servidor qué tipo de operación se está pidiendo:
 
 | Método | Acción | Cuándo aparece |
 |--------|--------|---------------|
@@ -69,7 +69,7 @@ En el uso cotidiano, `GET` y `POST` son el 99% del tráfico. `PUT` y `DELETE` ap
 
 ## Hablar HTTP a mano
 
-Para entender el protocolo de verdad, nada mejor que hablarlo directamente. Con `telnet` podés enviar un request HTTP sin browser:
+El browser construye y envía requests automáticamente. Pero HTTP es texto — podés escribirlo vos directamente con `telnet`. El servidor no distingue si del otro lado hay un browser o una terminal:
 
 ```bash
 telnet MACHINE_IP 80
@@ -99,7 +99,7 @@ Host: anything
 
 ## Lo que Wireshark revela
 
-Cuando el browser carga una página, el intercambio real tiene mucho más contenido del que ves. En Wireshark, el **request** (rojo) y la **response** (azul) se ven así:
+El browser muestra el resultado final — una página renderizada. Lo que realmente viajó por el cable es esto, antes de que se procese cualquier cosa:
 
 **→ Request del browser:**
 ```http
@@ -140,7 +140,7 @@ Todo eso ocurre antes de que veas una sola letra en pantalla.
 
 ## Códigos de estado
 
-Cada respuesta incluye un código de 3 dígitos. El primer dígito indica la categoría:
+Cada respuesta trae un código de 3 dígitos. El primer dígito define la categoría — y desde el ángulo del análisis, cada rango dice algo diferente sobre el estado del servidor:
 
 | Rango | Qué significa | Ejemplos frecuentes |
 |-------|--------------|-------------------|
@@ -148,6 +148,8 @@ Cada respuesta incluye un código de 3 dígitos. El primer dígito indica la cat
 | `3xx` | **Redirección** — el recurso está en otro lado | `301 Moved Permanently`, `302 Found` |
 | `4xx` | **Error del cliente** — el request tiene un problema | `401 Unauthorized`, `403 Forbidden`, `404 Not Found` |
 | `5xx` | **Error del servidor** — el servidor falló | `500 Internal Server Error`, `503 Service Unavailable` |
+
+Un `404` dice que el recurso no existe. Un `403` dice que existe — pero no te lo van a dar. Son respuestas distintas a preguntas distintas.
 
 <Callout type="tip">
   En pentesting, los códigos de respuesta son muy informativos: un `403` confirma que el recurso existe pero está restringido, un `401` indica que requiere autenticación, y un `500` puede revelar detalles del stack interno si el servidor no está bien configurado.
@@ -190,3 +192,7 @@ http
 # Capturar HTTP en tiempo real con tcpdump
 tcpdump -i eth0 port 80 -A -n
 ```
+
+---
+
+HTTP mueve texto estructurado — páginas, datos, respuestas. Pero no todo lo que circula en una red es texto de navegación. Hay protocolos diseñados específicamente para mover archivos, y lo hacen con una arquitectura diferente que expone más de lo que parece a primera vista.

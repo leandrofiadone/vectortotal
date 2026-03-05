@@ -15,7 +15,7 @@ import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
 
-**FTP** (File Transfer Protocol) es un protocolo dedicado a mover archivos entre dos máquinas. A diferencia de HTTP, que fue diseñado para páginas web, FTP es especializado: usa dos conexiones TCP en paralelo para separar los comandos de los datos.
+HTTP y FTP mueven datos por TCP. Hasta ahí el parecido. HTTP usa una conexión para todo. FTP abre dos: una para los comandos, otra para los datos. Esa separación resuelve un problema de eficiencia — y crea uno de exposición. La contraseña viaja por el canal de control, en texto plano, antes de que se transfiera un solo archivo.
 
 <ProtoCard
   name="FTP"
@@ -38,9 +38,9 @@ import Step from '../../components/Step.astro';
 | **Control** | 21 | Comandos (`USER`, `LIST`, `RETR`…) |
 | **Datos** | 20 (activo) o dinámico (pasivo) | Archivo o listado de directorio |
 
-Cuando ejecutás `ls`, el cliente manda `LIST` por el canal de control y el servidor abre **una nueva conexión** para enviar el listado. Lo mismo pasa con cada descarga.
+Cuando ejecutás `ls`, el cliente manda `LIST` por el canal de control y el servidor abre **una nueva conexión** para enviar el listado. Lo mismo pasa con cada descarga — cada transferencia es una conexión nueva.
 
-**Modo activo** — el servidor inicia la conexión de datos hacia el cliente. Tiene problemas con firewalls porque el cliente tiene que aceptar conexiones entrantes.
+**Modo activo** — el servidor inicia la conexión de datos hacia el cliente. Es la excepción a la regla habitual: acá es el servidor el que se conecta, no el cliente. Por eso falla con firewalls — el cliente tiene que aceptar una conexión entrante que no inició.
 
 **Modo pasivo (PASV)** — el cliente inicia ambas conexiones. El servidor responde con un puerto donde conectarse. Es el modo estándar hoy.
 
@@ -53,6 +53,8 @@ Los últimos dos números codifican el puerto: `134 × 256 + 10 = 34314`.
 ---
 
 ## Comandos del protocolo
+
+Lo que escribís en el cliente FTP y lo que realmente viaja por la red son cosas distintas. La interfaz es amigable. El protocolo es texto crudo:
 
 | Lo que escribís | Lo que viaja | Función |
 |-----------------|-------------|---------|
@@ -71,6 +73,8 @@ Los últimos dos números codifican el puerto: `134 × 256 + 10 = 34314`.
 ---
 
 ## Una sesión real
+
+El canal de control de FTP es completamente legible en una captura. Esto es lo que aparece — login, listado, descarga:
 
 <Step n={1} title="Conexión y login">
 ```
@@ -109,7 +113,7 @@ ftp> quit
 221 Goodbye.
 ```
 
-Cada `get` abre una nueva conexión pasiva. Hay dos `PASV` distintos: uno para el listado, otro para la descarga.
+Dos `PASV` distintos: uno para el listado, otro para la descarga. Cada operación de datos abre y cierra su propia conexión.
 </Step>
 
 <Callout type="warning">
@@ -133,3 +137,7 @@ quit                   # salir
 ftp                    # canal de control
 ftp-data               # transferencia de datos
 ```
+
+---
+
+FTP mueve archivos. Pero las organizaciones no solo mueven archivos — se comunican. Y para eso hay otra capa de protocolos, igual de expuesta, que maneja el envío, la recepción y la sincronización del correo.

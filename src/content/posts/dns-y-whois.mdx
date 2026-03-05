@@ -16,7 +16,7 @@ import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
 
-Cuando escribís `google.com` en el browser, lo primero que ocurre — antes de cargar cualquier página — es una consulta DNS. El sistema necesita convertir ese nombre legible en una dirección IP real para poder establecer la conexión.
+Antes de que tu browser envíe un solo byte, ya salió un paquete de tu máquina que no pediste explícitamente. Una consulta DNS. Viajó, volvió con una IP, y recién ahí arrancó todo lo demás. Ese mecanismo invisible es el primero que vale la pena entender — porque es el primero que ocurre en cualquier conexión.
 
 <ProtoCard
   name="DNS"
@@ -38,22 +38,24 @@ Cuando escribís `google.com` en el browser, lo primero que ocurre — antes de 
 Escribís `example.com` y el sistema ejecuta este proceso en milisegundos:
 
 <Step n={1} title="Consulta al resolver local">
-  Tu sistema operativo pregunta al **resolver DNS local** (generalmente el router o `127.0.0.53`). Si ya resolvió ese dominio recientemente, devuelve la respuesta desde caché.
+  Tu sistema operativo pregunta al **resolver DNS local** (generalmente el router o `127.0.0.53`). Si ya resolvió ese dominio recientemente, devuelve la respuesta desde caché — sin salir a la red.
 </Step>
 
 <Step n={2} title="El resolver consulta hacia arriba">
-  Si no está en caché, el resolver pregunta a un servidor DNS autoritativo. La cadena sube: resolver → servidor raíz → servidor TLD (`.com`, `.org`) → servidor autoritativo del dominio.
+  Si no está en caché, el resolver sube la cadena: resolver → servidor raíz → servidor TLD (`.com`, `.org`) → servidor autoritativo del dominio. Cada eslabón sabe a quién preguntarle al siguiente.
 </Step>
 
 <Step n={3} title="Respuesta y caché" last={true}>
-  El servidor autoritativo devuelve el registro pedido. El resolver lo almacena en caché según el **TTL** (Time To Live) del registro, y se lo entrega a tu sistema.
+  El servidor autoritativo devuelve el registro pedido. El resolver lo guarda en caché según el **TTL** del registro y se lo entrega a tu sistema. La próxima consulta al mismo dominio sale desde caché.
 </Step>
+
+¿Y si el resolver responde con una IP que no es la real? Eso es DNS spoofing — alguien en el camino intercepta la consulta y devuelve lo que quiere antes de que llegue la respuesta legítima. Por ahora asumí que el resolver es confiable. No siempre lo es.
 
 ---
 
 ## Los tipos de registros DNS
 
-Un dominio puede tener varios registros, cada uno con una función distinta:
+Los registros DNS son el mapa público de cómo está organizado un dominio. Cada tipo expone algo diferente:
 
 | Registro | Qué hace | Ejemplo |
 |----------|----------|---------|
@@ -63,14 +65,14 @@ Un dominio puede tener varios registros, cada uno con una función distinta:
 | **MX** | Servidor de correo del dominio | Necesario para recibir emails |
 
 <Callout type="info">
-  Cuando escribís `example.com` en el browser, se consulta el registro **A**. Cuando tu cliente de correo manda un email a `user@example.com`, consulta el registro **MX**. Son consultas distintas para propósitos distintos — mismo dominio, diferente tipo de registro.
+  Cuando escribís `example.com` en el browser, se consulta el registro **A**. Cuando tu cliente de correo manda un email a `user@example.com`, consulta el registro **MX**. Mismo dominio, consultas distintas — cada tipo de registro revela una parte diferente de la infraestructura.
 </Callout>
 
 ---
 
 ## Resolución en la práctica: nslookup
 
-`nslookup` consulta registros DNS directamente desde la línea de comandos:
+Con `nslookup` podés hacer esas consultas directamente, sin pasar por el browser:
 
 ```bash
 nslookup www.example.com
@@ -87,9 +89,7 @@ Name:   www.example.com
 Address: 2606:2800:21f:cb07:6820:80da:af6b:8b2c
 ```
 
-El servidor `127.0.0.53` es el resolver local. La respuesta **"non-authoritative"** indica que vino del caché o de un intermediario — no directamente del servidor que administra el dominio.
-
-Para consultar un tipo de registro específico:
+**"Non-authoritative"** significa que la respuesta vino del caché de un intermediario, no del servidor que administra el dominio. Es la respuesta que obtiene casi siempre cualquier cliente — la autoritativa solo aparece si le preguntás directamente al servidor responsable del dominio.
 
 ```bash
 nslookup -type=MX example.com       # servidores de correo
@@ -118,13 +118,15 @@ tshark -r dns-query.pcapng -Nn
 - Paquetes **2 y 4** — respuestas del servidor
 - Todo por UDP puerto 53, resuelto en menos de **110 ms**
 
+Esto ocurre antes de que se abra una sola conexión TCP. El tráfico DNS de una red es un registro continuo de adónde intenta conectarse cada dispositivo.
+
 ---
 
 ## WHOIS: quién registró ese dominio
 
-DNS resuelve *a dónde va* un dominio. **WHOIS** responde *quién lo registró*.
+DNS te dice *a dónde va* un dominio. WHOIS responde *quién lo controla*.
 
-Cuando alguien registra un dominio está obligado a proveer datos de contacto — esa información es pública y consultable:
+Registrar un dominio exige dejar datos de contacto. Esa información es pública por diseño del sistema — no por descuido del dueño:
 
 ```bash
 whois ejemplo.com
@@ -148,27 +150,27 @@ Lo que podés extraer:
 - **`Registrant`** — quién lo registró (nombre, org, email, teléfono)
 
 <Callout type="info">
-  Muchos dominios usan **privacy protection** (como "Domains By Proxy" en el ejemplo). Los datos reales del dueño se reemplazan por los del servicio de privacidad. El dominio sigue funcionando — solo que no ves quién lo controla realmente.
+  Muchos dominios usan **privacy protection** (como "Domains By Proxy" en el ejemplo). Los datos del dueño se reemplazan por los del servicio de privacidad. El nombre queda oculto — pero los registros DNS, el historial de cambios y la infraestructura asociada siguen siendo públicos.
 </Callout>
 
 ---
 
 ## WHOIS en reconocimiento
 
-En la fase de **reconocimiento** de un pentest o investigación OSINT, WHOIS es uno de los primeros pasos porque permite:
+WHOIS no es solo datos administrativos. En la fase de reconocimiento de un pentest o investigación OSINT, es una de las primeras fuentes porque el sistema fue diseñado para ser consultable por cualquiera:
 
-- Identificar la **organización dueña** de un activo (¿este dominio es realmente de la empresa objetivo?)
-- Encontrar **emails** del registrante (útil para correlacionar identidades o ingeniería social en engagements autorizados)
-- Detectar dominios **próximos a vencer** — un atacante puede registrarlos para suplantar la identidad
-- Correlacionar **otros dominios** registrados por la misma entidad
+- Verificar si un dominio pertenece realmente a la organización objetivo
+- Encontrar emails del registrante para correlacionar con otras fuentes
+- Detectar dominios próximos a vencer que podrían ser registrados por un tercero
+- Correlacionar otros dominios registrados bajo la misma entidad
 
 ```bash
-whois objetivo.com           # WHOIS de dominio
+whois objetivo.com               # WHOIS de dominio
 whois -h whois.arin.net 8.8.8.8  # WHOIS de una IP
 ```
 
 <Callout type="warning">
-  El WHOIS de IPs (ARIN en Norteamérica, RIPE en Europa, LACNIC en Latinoamérica) te dice a qué organización pertenece un bloque de direcciones. Útil para saber si una IP es de AWS, Cloudflare, o de la propia empresa objetivo.
+  El WHOIS de IPs (ARIN en Norteamérica, RIPE en Europa, LACNIC en Latinoamérica) te dice a qué organización pertenece un bloque de direcciones — útil para distinguir si una IP es de AWS, Cloudflare, o de la propia empresa objetivo.
 </Callout>
 
 ---
@@ -197,3 +199,7 @@ tshark -r captura.pcap -Y dns        # filtrar DNS en un archivo
 # Filtro en Wireshark
 dns
 ```
+
+---
+
+Con DNS sabés a qué IP apunta un nombre. Con WHOIS, quién está detrás. Es el punto de partida — el contorno del target antes de hacer ninguna conexión. Lo que sigue es diferente: en lugar de preguntar sobre el target, vas a hablarle directamente.

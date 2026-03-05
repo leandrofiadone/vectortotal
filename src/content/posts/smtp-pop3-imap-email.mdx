@@ -14,7 +14,7 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 
-Cuando mandás un email intervienen hasta tres protocolos distintos. No es un solo flujo — hay uno para enviarlo, otro para recibirlo en un dispositivo, y un tercero para mantenerlo sincronizado entre varios.
+FTP usaba dos conexiones. El email usa tres protocolos distintos — uno para enviar, uno para descargar, uno para sincronizar — cada uno en su propio puerto, cada uno en texto plano. No es un sistema monolítico sino una cadena: si interceptás cualquiera de los eslabones, leés el mensaje.
 
 ```
 [Tu cliente de email]
@@ -27,6 +27,8 @@ Cuando mandás un email intervienen hasta tres protocolos distintos. No es un so
        ├─ POP3 → descarga y borra
        └─ IMAP → sincroniza, queda en servidor
 ```
+
+El mensaje pasa por al menos dos servidores antes de llegar al destinatario. En cada tramo viaja sin cifrado — visible para cualquiera con acceso al tráfico en ese segmento.
 
 ---
 
@@ -54,6 +56,8 @@ Cuando mandás un email intervienen hasta tres protocolos distintos. No es un so
 | `QUIT` | Cierra sesión |
 
 ### Enviar un email con telnet
+
+SMTP es texto plano — podés enviar un email completo desde una terminal, sin cliente de correo. El servidor acepta el mensaje si el formato es correcto, independientemente de quién esté del otro lado:
 
 ```
 $ telnet <IP> 25
@@ -93,7 +97,7 @@ QUIT
   ]}
 />
 
-La analogía: una casilla de correo física. Retirás las cartas y la casilla queda vacía.
+POP3 funciona como una casilla de correo física: retirás las cartas y la casilla queda vacía. Una vez descargado, el mensaje desaparece del servidor. Simple, pero sin memoria distribuida — si descargás desde un dispositivo, los demás no ven nada.
 
 | Comando | Función |
 |---------|---------|
@@ -106,6 +110,8 @@ La analogía: una casilla de correo física. Retirás las cartas y la casilla qu
 | `QUIT` | Cierra sesión y aplica borrados |
 
 ### Recuperar email con telnet
+
+La credencial viaja en el segundo intercambio, antes de que se acceda a ningún mensaje:
 
 ```
 $ telnet 10.66.181.12 110
@@ -151,7 +157,7 @@ El mensaje 3 es el que enviamos con SMTP — el ciclo completo: enviaste con SMT
   ]}
 />
 
-La diferencia clave con POP3: los mensajes **no se borran del servidor**. El estado (leído, carpetas, borrados) se sincroniza entre todos los dispositivos. Si leés un email en el teléfono, aparece como leído en la laptop también.
+La diferencia con POP3 no es solo técnica — es de modelo. POP3 descarga y olvida. IMAP mantiene el estado: leído, no leído, movido, borrado — todo sincronizado entre cada dispositivo conectado a la misma cuenta.
 
 | Comando | Función |
 |---------|---------|
@@ -222,3 +228,7 @@ imap
 # Lookup de servidores de correo de un dominio
 nslookup -type=MX ejemplo.com
 ```
+
+---
+
+Tres protocolos, tres puertos, tres superficies en texto plano. Lo que sigue es el mapa completo: todos los protocolos vistos en esta subsección juntos, con sus versiones cifradas y lo que cada uno expone.
