@@ -42,6 +42,7 @@ const posts = (await getCollection('posts'))
 <BaseLayout
   title={`${label} — ${meta?.title ?? seriesKey}`}
   description={`Notas de ${label}`}
+  bodyClass="pattern-grid"
 >
   <div class="container page-wrap">
     <nav class="breadcrumb">
