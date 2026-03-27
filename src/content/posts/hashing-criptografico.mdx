@@ -1,0 +1,531 @@
+---
+title: "Hashing criptográfico: integridad, contraseñas y ataques"
+date: 2026-03-28
+excerpt: "MD5, SHA-256, colisiones, salt, rainbow tables, HMAC — cómo funciona el hashing, por qué es irreversible, y cómo se ataca. El tercer pilar de la criptografía después de cifrado simétrico y asimétrico."
+tags: ["crypto", "fundamentos"]
+series: crypto
+usefulFor:
+  - { area: "fundamentos de seguridad", pct: 100 }
+  - { area: "CTF / hacking", pct: 90 }
+  - { area: "pentesting", pct: 85 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Step from '../../components/Step.astro';
+import Terminal from '../../components/Terminal.astro';
+import Compare from '../../components/Compare.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
+import BarChart from '../../components/BarChart.astro';
+import Accordion from '../../components/Accordion.astro';
+import LiveHash from '../../components/LiveHash.astro';
+import HashChallenge from '../../components/HashChallenge.astro';
+
+Bajaste una ISO de 6 GB. Tardó una hora. ¿Cómo sabés que el archivo que tenés es idéntico al que publicó el desarrollador — sin corrupción, sin manipulación? No vas a comparar los 6 GB byte a byte. Lo que hacés es comparar dos strings de 64 caracteres: el hash publicado en la web y el que vos calculás sobre tu descarga. Si coinciden, el archivo es el mismo. Si difieren en un solo carácter, algo cambió.
+
+Ese mecanismo — reducir cualquier cantidad de datos a una huella fija e irrepetible — es **hashing**. Apareció varias veces en los dos posts anteriores sin definición formal: en las [firmas digitales](/salas/crypto/criptografia-asimetrica) (se firma el hash, no el documento entero), en [John the Ripper](/salas/crypto/criptografia-asimetrica) (ataca hashes, no contraseñas), en los [certificados TLS](/salas/crypto/ssh-gpg-confianza-digital) (la cadena usa hashes para verificar cada eslabón). Ahora le toca su propio post.
+
+---
+
+## Hashing vs cifrado — la distinción fundamental
+
+Mucha gente confunde hashing con cifrado. Son operaciones completamente distintas:
+
+- **Cifrado** — transformación **reversible** con llave. Cifrás un mensaje, lo mandás, y el destinatario lo descifra con la clave correcta. El objetivo es **confidencialidad**.
+- **Hash** — transformación **de una sola vía**, sin llave. Como una picadora de carne: una vez que procesaste el bife, no hay forma de reconstruirlo a partir de la carne picada.
+
+<Compare
+  headers={["Cifrado", "Hash"]}
+  icons={["🔐", "🔏"]}
+  colors={["#00e5ff", "#a29bfe"]}
+  rows={[
+    ["Reversible", "Sí — con la clave correcta", "No — nunca"],
+    ["Usa clave", "Sí", "No"],
+    ["Output", "Variable (depende del input)", "Fijo (siempre el mismo largo)"],
+    ["Objetivo", "Confidencialidad", "Integridad y autenticación"],
+  ]}
+/>
+
+La pregunta natural es: **¿para qué sirve algo irreversible?** Dos cosas:
+
+1. **Verificación de integridad** — ¿este archivo es idéntico al original?
+2. **Autenticación sin revelar el secreto** — un sistema puede confirmar tu contraseña sin necesidad de almacenarla.
+
+---
+
+## Qué hace una buena función de hash
+
+No cualquier función que produce un output fijo es un hash criptográfico. Tiene que cumplir cuatro propiedades:
+
+1. **Determinista** — mismo input, mismo output. Siempre. Sin excepciones. Si hasheás `"hola"` mil veces, obtenés el mismo resultado mil veces.
+2. **Rápida de computar** — calcular el hash de un archivo de 4 GB tiene que tomar segundos, no horas.
+3. **Efecto avalancha** (*avalanche effect*) — un cambio de **un solo bit** en el input cambia el output radicalmente. No un bit del output — todo el output.
+4. **Resistente a preimagen** — dado el hash, es computacionalmente inviable encontrar el input que lo generó.
+
+### Efecto avalancha en acción
+
+`T` y `U` son caracteres consecutivos en ASCII. En binario:
+
+```
+T = 0x54 = 01010100
+U = 0x55 = 01010101
+                  ^
+                  un solo bit de diferencia
+```
+
+Creá dos archivos y hasheá ambos:
+
+<Terminal title="efecto avalancha — 1 bit de diferencia" lines={[
+  { type: "prompt", text: "echo -n 'T' > T.txt && echo -n 'U' > U.txt" },
+  { type: "prompt", text: "md5sum T.txt U.txt" },
+  { type: "output", text: "b9ece18c950afbfa6b0fdbfa4ff731d3  T.txt" },
+  { type: "output", text: "4c614360da93c0a041b22e537de151eb  U.txt" },
+  { type: "prompt", text: "sha1sum T.txt U.txt" },
+  { type: "output", text: "e1e8ef73ddf5fba4db0fa5ac76bc2c86c95f4a08  T.txt" },
+  { type: "output", text: "f35e16adb0d2ccca7f0d9cbaf00e3f3d79e8d7ed  U.txt" },
+  { type: "prompt", text: "sha256sum T.txt U.txt" },
+  { type: "output", text: "e632b7095b0bf32c260fa4c539e9fd7b852d0de454e9be26f24d0d6f91d069d3  T.txt" },
+  { type: "output", text: "a318c24216defe206feeb73ef5be00033fa9c4a74d0b967f6532a26ca5906d3b  U.txt" },
+]} />
+
+Un bit de diferencia en el input. Outputs completamente distintos — ni un solo carácter en común. Eso es el **efecto avalancha**.
+
+Probalo vos mismo — escribí `T` en el campo y después cambiá la T por una `U`:
+
+<LiveHash placeholder="Escribí T..." />
+
+Cada celda de la grilla es un carácter hex del hash, pintado como color. Las celdas que **cambiaron** respecto al input anterior se iluminan — las que quedaron igual **se apagan**. Cambiá un solo carácter y mirá: casi toda la grilla explota.
+
+La barra de abajo mide cuántos de los 256 bits del hash se modificaron. Lo ideal es **~50%** — la mitad de los bits cambia con cada cambio mínimo en el input, y *cuáles* cambian es impredecible. Si cambiara solo el 2%, podrías ir deduciendo qué parte del input afecta qué parte del output. El 50% significa que no hay patrón — caos total. Exactamente lo que hace falta para que el hash sea seguro.
+
+<Callout type="info">
+  **La asimetría computacional**: calcular `hash(x)` toma microsegundos. Encontrar `x` dado `hash(x)` es astronómicamente costoso — tendrías que probar inputs hasta dar con uno que produzca ese hash. Con SHA-256 eso significa buscar entre 2²⁵⁶ posibilidades.
+</Callout>
+
+---
+
+## Colisiones y el efecto palomar
+
+Una función de hash toma inputs de **tamaño arbitrario** y produce outputs de **tamaño fijo**. MD5 siempre produce 128 bits — 2¹²⁸ outputs posibles. Pero los inputs son infinitos: cualquier archivo, de cualquier tamaño, produce un hash de 128 bits.
+
+Inevitablemente, dos inputs distintos van a producir el mismo output. Eso es una **colisión**.
+
+Es el **principio del palomar** (*pigeonhole principle*): si tenés más palomas que palomares, algún palomar va a tener más de una paloma. Con más inputs que outputs posibles, las colisiones son matemáticamente inevitables.
+
+Lo que distingue un hash criptográfico bueno: aunque las colisiones **existen**, encontrar una **intencionalmente** debe ser computacionalmente inviable.
+
+<BarChart
+  title="Espacio de outputs por algoritmo"
+  unit=" bits"
+  bars={[
+    { label: "MD5", value: 128, color: "#ff4757" },
+    { label: "SHA-1", value: 160, color: "#ffa502" },
+    { label: "SHA-256", value: 256, color: "#00e5ff" },
+    { label: "SHA-512", value: 512, color: "#a29bfe" },
+  ]}
+/>
+
+**MD5 y SHA-1 ya fueron comprometidos** — se demostraron colisiones construidas a propósito:
+
+- **MD5**: en 2004 Wang et al. publicaron un método para generar colisiones. Hoy cualquiera puede crear dos archivos distintos con el mismo MD5 en segundos. Demostración: [MD5 Collision Demo](https://www.mscs.dal.ca/~selinger/md5collision/).
+- **SHA-1**: en 2017, Google y CWI Amsterdam ejecutaron el [ataque SHAttered](https://shattered.io/) — generaron dos PDFs visualmente distintos con el mismo SHA-1. Costó ~110.000 GPUs y fue el primer ataque de colisión práctico contra SHA-1.
+
+<Callout type="danger">
+  MD5 y SHA-1 **no se usan para seguridad seria**. Siguen apareciendo por compatibilidad y para checksums no criptográficos, pero cualquier sistema nuevo debería usar SHA-256 o superior.
+</Callout>
+
+<Quiz question="MD5 produce 2¹²⁸ hashes posibles — un número astronómico. ¿Por qué entonces se considera inseguro?" hint="La seguridad de un hash no depende solo del tamaño del espacio de outputs.">
+
+Porque se descubrieron **atajos matemáticos** que permiten generar colisiones sin necesidad de probar todas las combinaciones. El espacio de 2¹²⁸ es enorme, pero los ataques de Wang (2004) explotan debilidades internas de MD5 para encontrar dos inputs con el mismo hash en **segundos**, no en años. Un hash criptográfico es seguro cuando no existen atajos conocidos — no cuando el espacio es grande.
+
+</Quiz>
+
+---
+
+## El output: bytes, hex y base64
+
+El output de una función de hash son **bytes crudos** — datos binarios ilegibles. Lo que ves en la terminal es la representación en **hexadecimal**: cada byte se convierte en 2 dígitos hex (0-9, a-f).
+
+| Algoritmo | Bits | Bytes | Caracteres hex |
+|-----------|------|-------|----------------|
+| **MD5** | 128 | 16 | 32 |
+| **SHA-1** | 160 | 20 | 40 |
+| **SHA-256** | 256 | 32 | 64 |
+| **SHA-512** | 512 | 64 | 128 |
+
+Linux tiene un comando dedicado para cada uno:
+
+<Terminal title="comandos de hash en Linux" lines={[
+  { type: "prompt", text: "md5sum archivo.txt" },
+  { type: "output", text: "d41d8cd98f00b204e9800998ecf8427e  archivo.txt" },
+  { type: "prompt", text: "sha1sum archivo.txt" },
+  { type: "output", text: "da39a3ee5e6b4b0d3255bfef95601890afd80709  archivo.txt" },
+  { type: "prompt", text: "sha256sum archivo.txt" },
+  { type: "output", text: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  archivo.txt" },
+  { type: "prompt", text: "sha512sum archivo.txt" },
+  { type: "output", text: "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e  archivo.txt" },
+]} />
+
+Cada output tiene exactamente el largo esperado. Contá los caracteres: 32, 40, 64, 128.
+
+---
+
+## Hashing para contraseñas
+
+Un sistema de autenticación **no necesita saber tu contraseña** — solo necesita confirmar que vos la sabés. El hash es perfecto para eso: guardás el hash de la contraseña, y cuando el usuario se loguea, calculás el hash de lo que ingresó y comparás. Si coinciden, la contraseña es correcta. Si no, es incorrecta. En ningún momento necesitás almacenar la contraseña original.
+
+<Mermaid title="Autenticación con hash — el servidor nunca ve tu contraseña" chart={`
+flowchart LR
+  INPUT["Usuario ingresa\ncontraseña"] --> HASH["hash(input)"]
+  HASH --> CMP{"Coincide con\nhash guardado?"}
+  DB["DB: hash almacenado"] --> CMP
+  CMP -->|"Si"| OK["Acceso"]
+  CMP -->|"No"| DENY["Rechazado"]
+`} />
+
+Suena simple. Y sin embargo, la industria encontró tres formas de hacerlo mal.
+
+### Las tres formas de hacerlo mal
+
+<Step n={1} title="Texto plano — RockYou (2009)" label="desastre">
+  La empresa RockYou almacenaba **32 millones de contraseñas en texto plano**. Sin hash, sin cifrado, sin nada. Les robaron la base de datos completa.
+
+  El resultado: `rockyou.txt` — el diccionario estándar de pentesting con **+14 millones de contraseñas reales**, ubicado en `/usr/share/wordlists/rockyou.txt` en Kali Linux. Se usa en cada CTF, en cada auditoría, en cada laboratorio de hacking. Cada vez que alguien crackea un hash con rockyou.txt, la incompetencia de RockYou sigue dando frutos.
+</Step>
+
+<Step n={2} title="Cifrado en vez de hash — Adobe (2013)" label="confusión">
+  Adobe usó **cifrado** (reversible) en vez de hash para proteger las contraseñas de 153 millones de cuentas. Si alguien obtiene la clave de cifrado, puede descifrar todo de un golpe — exactamente lo que pasó. Para empeorar las cosas, guardaban **hints de contraseña en texto plano**, y muchos usuarios escribían la contraseña misma como hint.
+</Step>
+
+<Step n={3} title="Hash inseguro sin salt — LinkedIn (2012)" label="incompleto" last={true}>
+  LinkedIn usó **SHA-1 sin salt**. SHA-1 ya estaba comprometido, y sin salt, dos usuarios con la misma contraseña tienen el mismo hash. Un atacante con rainbow tables podía crackear millones de hashes de un saque. Se filtraron 6.5 millones de hashes.
+</Step>
+
+<Callout type="warning">
+  LinkedIn hizo algo que parecía correcto — hashear las contraseñas — pero lo hizo mal. SHA-1 no es un algoritmo de hashing de contraseñas, y sin salt no hay defensa contra ataques precomputados. Hacer hash **no alcanza** — hay que hacerlo bien.
+</Callout>
+
+---
+
+## Rainbow tables y el salt
+
+### El problema de los hashes repetidos
+
+Si dos usuarios tienen la misma contraseña, tienen el mismo hash. Siempre. No importa cuántos usuarios sean: todos los que eligieron `123456` producen el mismo hash. Eso abre la puerta a un ataque brutal por su eficiencia.
+
+### Rainbow tables
+
+Las **rainbow tables** son tablas precalculadas de `hash → contraseña`. El atacante hace el trabajo costoso **una sola vez** — hashea millones de contraseñas comunes — y después reutiliza la tabla para buscar cualquier hash al instante. Es un tradeo de **tiempo por espacio**: invertís tiempo y disco una vez, y después cada búsqueda es casi instantánea.
+
+Sitios como [CrackStation](https://crackstation.net) y [Hashes.com](https://hashes.com/en/decrypt/hash) implementan exactamente esto. Pegás un hash, y si está en su tabla, te devuelven la contraseña original en milisegundos.
+
+<Accordion title="Detalle técnico: cadenas de reducción">
+
+Las rainbow tables reales no guardan simplemente pares `hash → contraseña` — eso ocuparía un espacio enorme. Usan **cadenas de reducción**: alternan entre hashear y *reducir* (transformar un hash en otra contraseña candidata), guardando solo el **inicio y el fin** de cada cadena.
+
+```
+contraseña₁ → hash₁ → reducción → contraseña₂ → hash₂ → reducción → contraseña₃ → hash₃
+```
+
+La tabla solo guarda `(contraseña₁, hash₃)`. Para buscar un hash objetivo, el atacante aplica reducciones desde ese hash hasta encontrar un final que coincida con alguna cadena guardada, y luego recorre la cadena desde el inicio para encontrar la contraseña exacta.
+
+Esto ahorra un **espacio enorme** a costa de un poco de velocidad en la búsqueda — un tradeoff que hace posible tener tablas de miles de millones de entradas.
+
+</Accordion>
+
+### El salt
+
+La defensa es el **salt**: un valor aleatorio y único por usuario que se agrega a la contraseña antes de hashear.
+
+```
+hash("miContraseña")              → siempre igual, vulnerable a rainbow tables
+hash("miContraseña" + "X7$kP2")  → único para este usuario
+```
+
+<Compare
+  headers={["Sin salt", "Con salt"]}
+  icons={["🔓", "🔒"]}
+  colors={["#ff4757", "#2ed573"]}
+  rows={[
+    ["user_1 (123456)", "482c811da5d5b4bc6206", "a7f2e9c1d8b34f17ee03"],
+    ["user_2 (123456)", "482c811da5d5b4bc6206", "3e8b1f5a9c2d708ab4d1"],
+    ["¿Hashes iguales?", "Sí — misma contraseña, mismo hash", "No — salts distintos, hashes distintos"],
+    ["Rainbow table", "Crackea todos de un golpe", "Inútil — necesitaría una tabla por salt"],
+  ]}
+/>
+
+Aunque dos usuarios tengan `123456`, si cada uno tiene un salt distinto, sus hashes son completamente diferentes. Las rainbow tables quedan inútiles — tendrían que precalcular una tabla **por cada salt posible**, lo cual es inviable.
+
+<Callout type="tip">
+  El salt **no es secreto**. Se guarda en la base de datos junto al hash. Su propósito no es esconderse — es hacer cada hash **único** para destruir la utilidad de las tablas precomputadas.
+</Callout>
+
+### El proceso correcto
+
+<Step n={1} title="Elegir algoritmo seguro">
+  **Argon2**, **Scrypt**, **Bcrypt** o **PBKDF2**. Nunca MD5 o SHA directamente — son demasiado rápidos para contraseñas.
+</Step>
+
+<Step n={2} title="Generar salt único por usuario">
+  Un string aleatorio criptográficamente seguro. Ejemplo: `Y4UV*^(=go_!`
+</Step>
+
+<Step n={3} title="Concatenar y hashear">
+  `AL4RMc10k` + `Y4UV*^(=go_!` = `AL4RMc10kY4UV*^(=go_!` → hashear la combinación.
+</Step>
+
+<Step n={4} title="Guardar hash + salt en la DB" last={true}>
+  `{ hash: "...", salt: "Y4UV*^(=go_!" }`. El salt viaja con el hash — no hay secreto que proteger.
+</Step>
+
+En la práctica, **Bcrypt y Scrypt hacen esto automáticamente**: generan el salt, lo aplican, y devuelven un string que ya lo incluye embebido. No tenés que manejar el salt por separado.
+
+**¿Por qué no cifrado?** Porque el cifrado requiere guardar una clave. Si alguien roba la DB y la clave (suelen estar en el mismo servidor), lo tiene todo. Con hash no hay clave que robar — no hay nada que revertir.
+
+---
+
+## Reconocer hashes
+
+Las herramientas automáticas de reconocimiento son poco confiables: muchos hashes se parecen visualmente. MD5, MD4 y NTLM producen los tres strings de 32 caracteres hex. La diferencia no está en el formato — está en el **contexto**:
+
+| Contexto | Probablemente es... |
+|----------|-------------------|
+| Base de datos web | MD5 |
+| Máquina Windows (SAM) | NTLM |
+| `/etc/shadow` de Linux | Tiene prefijo — fácil de identificar |
+| Aplicación moderna | bcrypt, Argon2 |
+
+### Linux `/etc/shadow`
+
+En Linux, los hashes de contraseña se guardan en `/etc/shadow` con formato `$prefijo$opciones$salt$hash`. El prefijo te dice el algoritmo:
+
+| Prefijo | Algoritmo | Estado |
+|---------|-----------|--------|
+| `$1$` | md5crypt | Viejo, muy crackeable |
+| `$6$` | sha512crypt | Común en sistemas viejos |
+| `$2b$` / `$2y$` / `$2a$` | bcrypt | Robusto, lento de crackear |
+| `$y$` | yescrypt | Moderno, default actual |
+
+<Terminal title="/etc/shadow" lines={[
+  { type: "prompt", text: "sudo cat /etc/shadow | grep strategos" },
+  { type: "output", text: "strategos:$y$j9T$76UzfgEM5PnymhQ7TlJey1$/OOSg64dhfF.TigVPdzqiFang6uZA4QA1pzzegKdVm4:19965:0:99999:7:::" },
+  { type: "highlight", text: "$y$ = yescrypt | j9T = parámetro | 76Uzf... = salt | /OOS... = hash" },
+]} />
+
+### Windows SAM
+
+Los hashes **NTLM** se guardan en el SAM (Security Accounts Manager). Herramientas como [mimikatz](https://github.com/gentilkiwi/mimikatz) sirven para dumpearlos. Son visualmente idénticos a MD4/MD5 — 32 caracteres hex, sin prefijo. La única forma de distinguirlos es saber de dónde vienen.
+
+<Callout type="tip">
+  Referencia completa de formatos de hash y modos de Hashcat: [Example Hashes](https://hashcat.net/wiki/doku.php?id=example_hashes). Es la referencia que vas a consultar cada vez que necesites identificar un hash.
+</Callout>
+
+---
+
+## Crackear hashes
+
+No **revertís** el hash — lo **reproducís**. El proceso es fuerza bruta dirigida:
+
+```
+candidata → hash(candidata) → ¿coincide con el objetivo?
+  → sí → encontraste la contraseña
+  → no → siguiente candidata
+```
+
+Si el hash tiene salt, lo agregás antes de hashear cada candidata. El salt se guarda en la DB — el atacante que robó los hashes también tiene los salts.
+
+### GPU vs CPU
+
+Una GPU tiene miles de núcleos optimizados para cálculos simples en paralelo — puede probar **millones de hashes por segundo**. Por eso los hashes rápidos (MD5, SHA-1) se crackean tan fácil: una GPU moderna prueba miles de millones de MD5 por segundo.
+
+Excepción: **bcrypt fue diseñado para que la GPU no dé ventaja**. Su algoritmo usa operaciones de memoria que las GPUs manejan mal. Esa es la razón por la que bcrypt es la opción recomendada — no es más seguro matemáticamente, es más lento de atacar por diseño.
+
+<Terminal title="hashcat --benchmark (RTX 4090)" lines={[
+  { type: "prompt", text: "hashcat --benchmark" },
+  { type: "output", text: "Hashmode: 0 - MD5" },
+  { type: "highlight", text: "Speed.#1.........: 164.0 GH/s" },
+  { type: "output", text: "Hashmode: 1400 - SHA-256" },
+  { type: "highlight", text: "Speed.#1.........:  22.2 GH/s" },
+  { type: "output", text: "Hashmode: 1800 - sha512crypt ($6$)" },
+  { type: "highlight", text: "Speed.#1.........:   3.5 MH/s" },
+  { type: "output", text: "Hashmode: 3200 - bcrypt ($2b$)" },
+  { type: "highlight", text: "Speed.#1.........: 184.0 kH/s" },
+]} />
+
+MD5: 164 **mil millones** por segundo. Bcrypt: 184 **mil** por segundo. Eso es una diferencia de **~900.000x**. Por eso el algoritmo importa más que la longitud de la contraseña.
+
+<Callout type="info">
+  Si usás Kali en una VM (VirtualBox, VMware), **Hashcat va a ser lento** porque no accede a la GPU real del host. John the Ripper usa CPU y funciona bien en VMs — es tu mejor opción en ese escenario.
+</Callout>
+
+### Hashcat
+
+[Hashcat](https://hashcat.net/hashcat/) es la herramienta estándar de cracking por GPU. Sintaxis básica:
+
+```bash
+hashcat -m <tipo> -a <modo> hashfile wordlist
+```
+
+- `-m`: tipo de hash en número (buscar en la [página de ejemplos](https://hashcat.net/wiki/doku.php?id=example_hashes))
+- `-a 0`: modo diccionario (prueba cada línea del wordlist)
+
+| Modo `-m` | Algoritmo |
+|-----------|-----------|
+| `0` | MD5 |
+| `1000` | NTLM |
+| `1400` | SHA-256 |
+| `1800` | sha512crypt (`$6$`) |
+| `3200` | bcrypt (`$2a$`, `$2b$`) |
+
+<Terminal title="hashcat — cracking bcrypt" lines={[
+  { type: "prompt", text: "hashcat -m 3200 -a 0 hash.txt /usr/share/wordlists/rockyou.txt" },
+  { type: "output", text: "hashcat (v6.2.6) starting..." },
+  { type: "output", text: "..." },
+  { type: "success", text: "$2a$10$N9qo8uLOickgx2ZMRZoMye... :password123" },
+  { type: "output", text: "Session..........: hashcat" },
+  { type: "output", text: "Status...........: Cracked" },
+]} />
+
+### Flujo ofensivo completo
+
+<Step n={1} title="Identificar el tipo de hash">
+  Prefijo, contexto, longitud, [página de ejemplos de Hashcat](https://hashcat.net/wiki/doku.php?id=example_hashes).
+</Step>
+
+<Step n={2} title="Intentar lookup online">
+  [CrackStation](https://crackstation.net) → [Hashes.com](https://hashes.com/en/decrypt/hash). Si el hash no tiene salt y la contraseña es común, puede aparecer al instante.
+</Step>
+
+<Step n={3} title="Cracking local">
+  Hashcat o John the Ripper con `rockyou.txt`. Si no alcanza, probar reglas de mutación o combinar wordlists.
+</Step>
+
+<Step n={4} title="Evaluar las condiciones" last={true}>
+  Si tiene salt, las rainbow tables no sirven — es crackeo individual. Si es bcrypt/Argon2, va a ser lento sin importar el hardware. Ajustar la estrategia en función del algoritmo.
+</Step>
+
+<Callout type="tip">
+  `rockyou.txt` y este flujo de crackeo con Hashcat/John the Ripper van a volver a aparecer en posts de pentesting. Es la base de cualquier ataque contra autenticación.
+</Callout>
+
+---
+
+## Hashing para integridad de archivos
+
+Volvemos al caso del principio: bajaste 6 GB y necesitás confirmar que el archivo es idéntico al original. Las distribuciones de Linux publican el SHA-256 oficial de cada ISO. Calculás el hash de tu descarga y comparás.
+
+<Terminal title="verificación de integridad" lines={[
+  { type: "prompt", text: "sha256sum Fedora-Workstation-Live-x86_64-41-1.4.iso" },
+  { type: "output", text: "992b4c21c4e8c6b734b2e0d5e4b6ce8f13a82d9a57e1cb3f92dbb4c01a17e539  Fedora-Workstation-Live-x86_64-41-1.4.iso" },
+  { type: "highlight", text: "Comparar este hash con el publicado en la web oficial de Fedora" },
+]} />
+
+Si coinciden: el archivo es idéntico — sin corrupción, sin manipulación, sin importar que haya cruzado media Internet para llegar a tu disco. Si difieren en un solo carácter: algo cambió y no deberías usar esa ISO.
+
+También sirve para detectar **archivos duplicados**: mismo hash = mismo contenido, sin importar el nombre. Es más confiable que comparar nombres o tamaños.
+
+---
+
+## HMAC — autenticidad además de integridad
+
+El hash común prueba **integridad** pero no **autenticidad**: cualquiera puede calcular el hash de un mensaje. Si intercepto un mensaje y su hash, puedo modificar el mensaje, recalcular el hash, y nadie se da cuenta — el hash del mensaje modificado sigue siendo válido.
+
+**HMAC** (Hash-based Message Authentication Code) resuelve esto combinando hash + clave secreta:
+
+```
+HMAC(K, M) = H( (K ⊕ opad) || H( (K ⊕ ipad) || M ) )
+```
+
+Leído de adentro hacia afuera:
+
+1. **Ronda interna**: `K ⊕ ipad` → concatenar con el mensaje `M` → hashear → resultado intermedio
+2. **Ronda externa**: `K ⊕ opad` → concatenar con el resultado intermedio → hashear → HMAC final
+
+Donde `ipad` = inner padding (`0x36` repetido) y `opad` = outer padding (`0x5C` repetido). Son constantes fijas que hacen que las dos rondas sean criptográficamente distintas.
+
+<Mermaid title="HMAC: hash con clave secreta" chart={`
+flowchart TD
+  K["Clave secreta K"] --> IPAD["K XOR ipad 0x36"]
+  K --> OPAD["K XOR opad 0x5C"]
+  M["Mensaje M"] --> CONCAT1["Concatenar"]
+  IPAD --> CONCAT1
+  CONCAT1 --> HASH1["Hash ronda interna"]
+  HASH1 --> CONCAT2["Concatenar"]
+  OPAD --> CONCAT2
+  CONCAT2 --> HASH2["Hash ronda externa"]
+  HASH2 --> HMAC["HMAC final"]
+`} />
+
+Solo alguien con la clave secreta puede generar el HMAC correcto → prueba **autenticidad**. El hash verifica que el contenido no cambió → prueba **integridad**.
+
+**Usos reales**: firmar requests de APIs, tokens JWT (JSON Web Tokens), verificación de integridad en TLS.
+
+---
+
+## Hashing vs encoding vs cifrado
+
+Para cerrar: la distinción que mucha gente no tiene clara.
+
+<Compare
+  headers={["Hashing", "Encoding", "Encryption"]}
+  icons={["🔏", "🔄", "🔐"]}
+  colors={["#a29bfe", "#ffd32a", "#00e5ff"]}
+  rows={[
+    ["Reversible", "No", "Sí (sin clave)", "Sí (con clave)"],
+    ["Usa clave", "No", "No", "Sí"],
+    ["Para qué sirve", "Integridad, autenticación", "Compatibilidad entre sistemas", "Confidencialidad"],
+    ["Ejemplo", "SHA-256, bcrypt", "Base64, UTF-8, ASCII", "AES, RSA, ChaCha20"],
+  ]}
+/>
+
+El **encoding** (Base64, ASCII, UTF-8) **no protege nada** — cualquiera puede revertirlo. No tiene clave, no tiene secreto. Existe para representar datos en formatos que distintos sistemas puedan leer. No confundir con cifrado.
+
+```bash
+# Encoding — no es seguridad, es formato
+echo -n "TryHackMe" | base64           # codifica → VHJ5SGFja01l
+echo -n "VHJ5SGFja01l" | base64 -d     # decodifica → TryHackMe
+```
+
+El hashing completa el triángulo criptográfico junto al cifrado simétrico y asimétrico. Las [firmas digitales](/salas/crypto/criptografia-asimetrica) usan hashing internamente — se firma el **hash** del mensaje, no el mensaje completo. [SSH](/salas/crypto/ssh-gpg-confianza-digital) usa hashes para verificar la integridad de cada paquete. Y el `rockyou.txt` que nació de la incompetencia de RockYou es la herramienta estándar de todo pentest.
+
+---
+
+## Practicá — mini CTF
+
+Tres hashes, dificultad creciente. Identificá el tipo, elegí la herramienta, crackeá, y verificá tu respuesta acá mismo. La verificación funciona con hashing — tu respuesta se hashea en el browser y se compara con un hash guardado. La respuesta nunca está en el código fuente.
+
+<HashChallenge
+  type="MD5"
+  answer="sunshine"
+  difficulty={1}
+  context="Encontraste este hash en el dump de una base de datos PHP."
+  hint="32 caracteres hex, sin prefijo → MD5. Probá CrackStation."
+/>
+
+<HashChallenge
+  type="SHA-1"
+  answer="trustno1"
+  difficulty={2}
+  context="Una aplicación web legacy guardaba contraseñas con SHA-1 sin salt."
+  hint="40 caracteres hex → SHA-1. Está en rockyou.txt. hashcat -m 100."
+/>
+
+<HashChallenge
+  type="SHA-256"
+  answer="dragon"
+  difficulty={3}
+  hint="64 caracteres hex. hashcat -m 1400 con rockyou.txt."
+/>
+
+---
+
+<Quiz question="Si el salt se guarda en la base de datos junto al hash, ¿no lo puede ver un atacante que roba la DB? ¿Para qué sirve entonces?" hint="Pensá en qué tipo de ataque previene el salt y cómo funcionan las rainbow tables.">
+
+Sí, el atacante que roba la DB tiene los salts. Pero eso no importa. El propósito del salt no es ser secreto — es hacer que **cada hash sea único**. Sin salt, el atacante puede precalcular una rainbow table gigante y buscar millones de hashes al instante. Con salt, cada hash tiene un salt distinto, así que necesitaría una rainbow table **por cada salt** — lo cual es computacionalmente inviable. El salt no impide el cracking individual (fuerza bruta contra un hash específico), pero destruye completamente los ataques precomputados contra toda la base de datos.
+
+</Quiz>
+
+---
+
+Con este post se cierra la base criptográfica: [cifrado asimétrico](/salas/crypto/criptografia-asimetrica), [aplicaciones prácticas](/salas/crypto/ssh-gpg-confianza-digital), y ahora hashing. Las tres piezas van a reaparecer juntas en cada post de pentesting — desde el primer `hashcat` contra un `/etc/shadow` hasta firmas y túneles en ataques reales.

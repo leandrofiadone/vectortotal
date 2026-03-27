@@ -11,6 +11,7 @@ draft: false
 ---
 
 import Callout from '../../components/Callout.astro';
+import Quiz from '../../components/Quiz.astro';
 
 DNS, HTTP, FTP, SMTP, POP3, IMAP. Protocolos distintos, propósitos distintos — pero todos comparten una característica: fueron diseñados para funcionar, no para ser seguros. El cifrado llegó después, como una capa encima. Este post junta todo lo visto en la subsección en un solo lugar.
 
@@ -59,6 +60,14 @@ Todos los protocolos de texto plano tienen una versión segura con TLS:
 <Callout type="info">
   El comportamiento de los protocolos es el mismo con o sin TLS — la diferencia es que el tráfico va cifrado y no es legible en Wireshark. SSH es el caso especial: es un protocolo distinto, no una capa sobre TELNET.
 </Callout>
+
+---
+
+<Quiz question="¿En qué puerto corre SSH por defecto y a cuál protocolo inseguro reemplaza?" hint="Pensá en acceso remoto por terminal.">
+
+SSH corre en el **puerto 22** (TCP) y reemplaza a **Telnet** (puerto 23). La diferencia clave: Telnet envía todo en texto plano — incluyendo tu usuario y contraseña — mientras que SSH cifra toda la comunicación desde el inicio.
+
+</Quiz>
 
 ---
 

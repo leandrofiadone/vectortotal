@@ -1,0 +1,587 @@
+---
+import { MAP_NODES, MAP_EDGES, GROUP_COLORS, GROUP_LABELS } from '../data/mapNodes';
+
+const nodesWithUrls = MAP_NODES.map(node => ({
+  ...node,
+  url: node.subsection
+    ? `/salas/${node.series}/${node.subsection}/${node.slug}`
+    : `/salas/${node.series}/${node.slug}`,
+}));
+---
+
+<div class="map-container" id="mapContainer">
+  <canvas id="mapCanvas"></canvas>
+
+  <!-- HTML nodes projected over canvas -->
+  <div class="nodes-layer" id="nodesLayer">
+    {nodesWithUrls.map(node => (
+      <button
+        class="map-node"
+        data-id={node.id}
+        data-x={node.x}
+        data-y={node.y}
+        data-z={node.z}
+        data-group={node.group}
+        data-url={node.url}
+        data-label={node.label}
+        data-desc={node.desc}
+        data-excerpt={node.excerpt}
+        data-tags={node.tags.join(',')}
+        style={`--nc: ${GROUP_COLORS[node.group]}`}
+      >
+        <span class="node-label">{node.label}</span>
+        <span class="node-desc">{node.desc}</span>
+      </button>
+    ))}
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail-panel" id="detailPanel">
+    <button class="detail-close" id="detailClose">&times;</button>
+    <div class="detail-group" id="detailGroup"></div>
+    <h2 class="detail-title" id="detailTitle"></h2>
+    <p class="detail-desc" id="detailDesc"></p>
+    <p class="detail-excerpt" id="detailExcerpt"></p>
+    <div class="detail-tags" id="detailTags"></div>
+    <a class="detail-link" id="detailLink" href="/">Leer post &rarr;</a>
+  </div>
+
+  <!-- Legend -->
+  <div class="map-legend">
+    {Object.entries(GROUP_LABELS).map(([key, label]) => (
+      <div class="legend-item">
+        <span class="legend-dot" style={`background: ${GROUP_COLORS[key as keyof typeof GROUP_COLORS]}`}></span>
+        <span>{label}</span>
+      </div>
+    ))}
+  </div>
+
+  <!-- Edge label tooltip -->
+  <div class="edge-tooltip" id="edgeTooltip"></div>
+
+  <div class="map-controls">
+    <kbd>arrastrar</kbd> rotar &middot; <kbd>click derecho</kbd> mover &middot; <kbd>scroll</kbd> zoom &middot; <kbd>click</kbd> detalles
+  </div>
+</div>
+
+<script is:inline define:vars={{ edges: MAP_EDGES, groupColors: GROUP_COLORS, groupLabels: GROUP_LABELS }}>
+  window.__mapData = { edges, groupColors, groupLabels };
+</script>
+
+<script>
+  import * as THREE from 'three';
+
+  function initMap() {
+    const container = document.getElementById('mapContainer');
+    const canvas = document.getElementById('mapCanvas') as HTMLCanvasElement;
+    const nodesLayer = document.getElementById('nodesLayer')!;
+    const panel = document.getElementById('detailPanel')!;
+    if (!container || !canvas) return;
+
+    const { edges, groupColors, groupLabels } = (window as any).__mapData;
+    let W = container.clientWidth;
+    let H = container.clientHeight;
+
+    // ── Collect nodes from DOM ──
+    const nodeEls = nodesLayer.querySelectorAll('.map-node') as NodeListOf<HTMLElement>;
+    const nodes: { el: HTMLElement; pos: THREE.Vector3 }[] = [];
+    const nodeById = new Map<string, THREE.Vector3>();
+
+    nodeEls.forEach(el => {
+      const pos = new THREE.Vector3(
+        parseFloat(el.dataset.x!),
+        parseFloat(el.dataset.y!),
+        parseFloat(el.dataset.z!),
+      );
+      nodes.push({ el, pos });
+      nodeById.set(el.dataset.id!, pos);
+    });
+
+    // ── Renderer ──
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(W, H);
+    renderer.setClearColor(0x060a0e, 1);
+
+    const scene = new THREE.Scene();
+
+    // ── Camera ──
+    const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 300);
+
+    // ── Particles ──
+    const pCount = 250;
+    const pGeo = new THREE.BufferGeometry();
+    const pArr = new Float32Array(pCount * 3);
+    for (let i = 0; i < pCount; i++) {
+      pArr[i * 3]     = (Math.random() - 0.5) * 60;
+      pArr[i * 3 + 1] = (Math.random() - 0.5) * 50;
+      pArr[i * 3 + 2] = (Math.random() - 0.5) * 40 - 10;
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pArr, 3));
+    scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
+      color: 0x162030, size: 0.07, transparent: true, opacity: 0.6, sizeAttenuation: true,
+    })));
+
+    // ── Grid ──
+    const grid = new THREE.GridHelper(50, 50, 0x0c1822, 0x0c1822);
+    grid.position.y = -7;
+    (grid.material as THREE.Material).opacity = 0.2;
+    (grid.material as THREE.Material).transparent = true;
+    scene.add(grid);
+
+    // ── Edge lines (curved) ──
+    edges.forEach((edge: any) => {
+      const p1 = nodeById.get(edge.from);
+      const p2 = nodeById.get(edge.to);
+      if (!p1 || !p2) return;
+
+      const mid = new THREE.Vector3().lerpVectors(p1, p2, 0.5);
+      const dist = p1.distanceTo(p2);
+      mid.y += dist * 0.18;
+
+      const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+      const pts = curve.getPoints(36);
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+
+      // Use 'from' node group color
+      const fromEl = [...nodeEls].find(el => el.dataset.id === edge.from);
+      const color = fromEl ? (groupColors as Record<string,string>)[fromEl.dataset.group!] || '#00e5ff' : '#00e5ff';
+
+      scene.add(new THREE.Line(geo, new THREE.LineBasicMaterial({
+        color: new THREE.Color(color), transparent: true, opacity: 0.18,
+      })));
+    });
+
+    // ── Project 3D → screen ──
+    const tv = new THREE.Vector3();
+    function toScreen(pos: THREE.Vector3) {
+      tv.copy(pos).project(camera);
+      return {
+        x: (tv.x * 0.5 + 0.5) * W,
+        y: (-tv.y * 0.5 + 0.5) * H,
+      };
+    }
+
+    function updatePositions() {
+      nodes.forEach(({ el, pos }) => {
+        const s = toScreen(pos);
+        el.style.left = s.x + 'px';
+        el.style.top = s.y + 'px';
+      });
+    }
+
+    // ── Node clicks ──
+    nodeEls.forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const color = (groupColors as Record<string,string>)[el.dataset.group!] || '#00e5ff';
+        const groupLabel = (groupLabels as Record<string,string>)[el.dataset.group!] || '';
+
+        const gEl = document.getElementById('detailGroup')!;
+        gEl.textContent = groupLabel;
+        gEl.style.color = color;
+        gEl.style.borderColor = color;
+        document.getElementById('detailTitle')!.textContent = el.dataset.label!;
+        document.getElementById('detailDesc')!.textContent = el.dataset.desc!;
+        document.getElementById('detailExcerpt')!.textContent = el.dataset.excerpt!;
+        (document.getElementById('detailLink') as HTMLAnchorElement).href = el.dataset.url!;
+
+        const tagsEl = document.getElementById('detailTags')!;
+        tagsEl.innerHTML = '';
+        el.dataset.tags!.split(',').filter(Boolean).forEach(tag => {
+          const span = document.createElement('span');
+          span.className = 'detail-tag';
+          span.textContent = tag;
+          tagsEl.appendChild(span);
+        });
+
+        panel.classList.add('open');
+      });
+    });
+
+    document.getElementById('detailClose')!.addEventListener('click', () => panel.classList.remove('open'));
+    canvas.addEventListener('click', () => panel.classList.remove('open'));
+
+    // ── Orbit state (declared early so edge hover can reference) ──
+    let dragging = false;
+    let panning = false;
+    let prev = { x: 0, y: 0 };
+    let rY = 0, rX = 0.12;
+    let tRY = 0, tRX = 0.12;
+    let zm = 28, tZm = 28;
+    let panX = 0, panY = 0, tPanX = 0, tPanY = 0;
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 2 || e.button === 1) {
+        // Right-click or middle-click → pan
+        panning = true;
+        e.preventDefault();
+      } else {
+        dragging = true;
+      }
+      prev = { x: e.clientX, y: e.clientY };
+      canvas.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', e => {
+      if (panning) {
+        tPanX += (e.clientX - prev.x) * 0.03;
+        tPanY -= (e.clientY - prev.y) * 0.03;
+        prev = { x: e.clientX, y: e.clientY };
+      } else if (dragging) {
+        tRY += (e.clientX - prev.x) * 0.003;
+        tRX += (e.clientY - prev.y) * 0.002;
+        tRX = Math.max(-0.35, Math.min(0.55, tRX));
+        prev = { x: e.clientX, y: e.clientY };
+      }
+    });
+    window.addEventListener('mouseup', () => {
+      dragging = false;
+      panning = false;
+      canvas.style.cursor = 'grab';
+    });
+
+    container.addEventListener('wheel', e => {
+      e.preventDefault();
+      tZm += e.deltaY * 0.02;
+      tZm = Math.max(14, Math.min(50, tZm));
+    }, { passive: false });
+
+    // Touch: 1 finger = rotate, 2 fingers = zoom, 3 fingers = pan
+    let lastT: Touch | null = null;
+    let lastTD = 0;
+    let lastTwoCenter = { x: 0, y: 0 };
+    container.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) lastT = e.touches[0];
+      else if (e.touches.length === 2) {
+        lastTD = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        lastTwoCenter = { x: (e.touches[0].clientX + e.touches[1].clientX) / 2, y: (e.touches[0].clientY + e.touches[1].clientY) / 2 };
+      }
+    }, { passive: true });
+    container.addEventListener('touchmove', e => {
+      e.preventDefault();
+      if (e.touches.length === 1 && lastT) {
+        tRY += (e.touches[0].clientX - lastT.clientX) * 0.003;
+        tRX += (e.touches[0].clientY - lastT.clientY) * 0.002;
+        tRX = Math.max(-0.35, Math.min(0.55, tRX));
+        lastT = e.touches[0];
+      } else if (e.touches.length === 2) {
+        const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        tZm *= lastTD / d;
+        tZm = Math.max(14, Math.min(50, tZm));
+        lastTD = d;
+        // Two-finger pan
+        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        tPanX += (cx - lastTwoCenter.x) * 0.03;
+        tPanY -= (cy - lastTwoCenter.y) * 0.03;
+        lastTwoCenter = { x: cx, y: cy };
+      }
+    }, { passive: false });
+    container.addEventListener('touchend', () => { lastT = null; });
+
+    // ── Edge label hover ──
+    const edgeTooltip = document.getElementById('edgeTooltip')!;
+    const edgeCurves: { curve: THREE.QuadraticBezierCurve3; label: string; color: string }[] = [];
+
+    edges.forEach((edge: any) => {
+      const p1 = nodeById.get(edge.from);
+      const p2 = nodeById.get(edge.to);
+      if (!p1 || !p2) return;
+      const mid = new THREE.Vector3().lerpVectors(p1, p2, 0.5);
+      mid.y += p1.distanceTo(p2) * 0.18;
+      const curve = new THREE.QuadraticBezierCurve3(p1, mid, p2);
+      const fromEl = [...nodeEls].find(el => el.dataset.id === edge.from);
+      const color = fromEl ? (groupColors as Record<string,string>)[fromEl.dataset.group!] || '#00e5ff' : '#00e5ff';
+      edgeCurves.push({ curve, label: edge.label || '', color });
+    });
+
+    function checkEdgeHover(mx: number, my: number) {
+      let closest = { dist: Infinity, label: '', color: '', sx: 0, sy: 0 };
+      for (const { curve, label, color } of edgeCurves) {
+        for (let t = 0; t <= 1; t += 0.05) {
+          const pt = curve.getPoint(t);
+          const s = toScreen(pt);
+          const d = Math.hypot(s.x - mx, s.y - my);
+          if (d < closest.dist) closest = { dist: d, label, color, sx: s.x, sy: s.y };
+        }
+      }
+      if (closest.dist < 25 && closest.label) {
+        edgeTooltip.textContent = closest.label;
+        edgeTooltip.style.borderColor = closest.color;
+        edgeTooltip.style.left = closest.sx + 'px';
+        edgeTooltip.style.top = (closest.sy - 28) + 'px';
+        edgeTooltip.classList.add('visible');
+      } else {
+        edgeTooltip.classList.remove('visible');
+      }
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (!dragging && !panning) {
+        const rect = container!.getBoundingClientRect();
+        checkEdgeHover(e.clientX - rect.left, e.clientY - rect.top);
+      } else {
+        edgeTooltip.classList.remove('visible');
+      }
+    });
+    canvas.addEventListener('mouseleave', () => edgeTooltip.classList.remove('visible'));
+
+    // ── Resize ──
+    new ResizeObserver(() => {
+      W = container!.clientWidth;
+      H = container!.clientHeight;
+      renderer.setSize(W, H);
+      camera.aspect = W / H;
+      camera.updateProjectionMatrix();
+    }).observe(container);
+
+    // ── Animate ──
+    const clock = new THREE.Clock();
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      rX += (tRX - rX) * 0.06;
+      rY += (tRY - rY) * 0.06;
+      zm += (tZm - zm) * 0.08;
+      panX += (tPanX - panX) * 0.08;
+      panY += (tPanY - panY) * 0.08;
+
+      camera.position.set(
+        Math.sin(rY) * zm + panX,
+        Math.sin(rX) * zm * 0.35 + 2 + panY,
+        Math.cos(rY) * zm,
+      );
+      camera.lookAt(panX, panY, 0);
+
+      updatePositions();
+
+      // Particle drift
+      const pts = scene.children.find((c: THREE.Object3D) => c instanceof THREE.Points) as THREE.Points | undefined;
+      if (pts) pts.rotation.y = t * 0.006;
+
+      renderer.render(scene, camera);
+    })();
+
+    // Idle auto-rotate
+    let idleTimer: ReturnType<typeof setTimeout>;
+    let idleRAF = 0;
+    function startIdle() {
+      const fn = () => { if (!dragging) tRY += 0.0005; idleRAF = requestAnimationFrame(fn); };
+      fn();
+    }
+    function resetIdle() {
+      cancelAnimationFrame(idleRAF);
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(startIdle, 5000);
+    }
+    container.addEventListener('mousedown', resetIdle);
+    container.addEventListener('wheel', resetIdle);
+    container.addEventListener('touchstart', resetIdle);
+    resetIdle();
+  }
+
+  document.addEventListener('astro:page-load', initMap);
+</script>
+
+<style>
+  .map-container {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 60px);
+    overflow: hidden;
+    background: #060a0e;
+  }
+
+  #mapCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+
+  /* ── Nodes ── */
+  .nodes-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+    overflow: hidden;
+  }
+
+  .map-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    pointer-events: all;
+    background: rgba(8, 12, 18, 0.92);
+    border: 1px solid color-mix(in srgb, var(--nc) 30%, var(--border));
+    border-top: 2px solid var(--nc);
+    border-radius: 5px;
+    padding: 8px 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    white-space: nowrap;
+    will-change: left, top;
+  }
+
+  .map-node:hover {
+    border-color: var(--nc);
+    box-shadow:
+      0 0 16px color-mix(in srgb, var(--nc) 25%, transparent),
+      inset 0 0 12px color-mix(in srgb, var(--nc) 5%, transparent);
+    z-index: 10;
+  }
+
+  .node-label {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: 0.03em;
+  }
+
+  .node-desc {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--text-dim);
+  }
+
+  /* ── Detail Panel ── */
+  .detail-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 320px;
+    background: rgba(10, 14, 20, 0.96);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 26px;
+    z-index: 20;
+    transform: translateX(360px);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+    pointer-events: none;
+  }
+  .detail-panel.open { transform: translateX(0); opacity: 1; pointer-events: all; }
+
+  .detail-close {
+    position: absolute; top: 12px; right: 14px;
+    background: none; border: none; color: var(--text-dim);
+    font-size: 1.2rem; cursor: pointer; line-height: 1;
+  }
+  .detail-close:hover { color: var(--text-bright); }
+
+  .detail-group {
+    font-family: var(--mono); font-size: 0.6rem;
+    text-transform: uppercase; letter-spacing: 0.14em;
+    padding: 3px 10px; border: 1px solid; border-radius: 3px;
+    display: inline-block; margin-bottom: 14px;
+  }
+
+  .detail-title {
+    font-family: var(--display); font-size: 1.4rem; font-weight: 800;
+    color: var(--text-bright); margin-bottom: 3px; line-height: 1.2;
+  }
+
+  .detail-desc {
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text-dim); margin-bottom: 12px;
+  }
+
+  .detail-excerpt {
+    font-size: 0.83rem; color: var(--text); line-height: 1.6; margin-bottom: 16px;
+  }
+
+  .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+
+  .detail-tag {
+    font-family: var(--mono); font-size: 0.62rem; color: var(--text-dim);
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: 2px 8px; border-radius: 2px;
+  }
+
+  .detail-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 0.78rem; color: var(--accent);
+    text-decoration: none; padding: 9px 18px;
+    border: 1px solid var(--accent); border-radius: 4px;
+    transition: background 0.2s;
+  }
+  .detail-link:hover { background: rgba(0, 229, 255, 0.1); }
+
+  /* ── Edge tooltip ── */
+  .edge-tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    z-index: 15;
+    background: rgba(8, 12, 18, 0.95);
+    border: 1px solid var(--border);
+    border-top: 2px solid;
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    color: var(--text);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+    max-width: 280px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .edge-tooltip.visible { opacity: 1; }
+
+  /* ── Legend ── */
+  .map-legend {
+    position: absolute; bottom: 44px; left: 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    background: rgba(6, 10, 14, 0.92); backdrop-filter: blur(8px);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 16px; z-index: 10;
+  }
+
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.68rem; color: var(--text-dim);
+  }
+
+  .legend-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Controls ── */
+  .map-controls {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 6px; align-items: center;
+    font-family: var(--mono); font-size: 0.58rem; color: var(--text-dim);
+    opacity: 0.3; white-space: nowrap; z-index: 10;
+  }
+  .map-controls kbd {
+    background: var(--bg3); border: 1px solid var(--border);
+    padding: 1px 5px; border-radius: 2px; font-family: var(--mono); font-size: 0.55rem;
+  }
+
+  /* ── Mobile ── */
+  @media (max-width: 768px) {
+    .detail-panel {
+      top: auto; bottom: 0; right: 0; left: 0; width: 100%;
+      border-radius: 14px 14px 0 0; transform: translateY(100%);
+      max-height: 55vh; overflow-y: auto;
+    }
+    .detail-panel.open { transform: translateY(0); }
+    .map-legend { bottom: auto; top: 10px; left: 10px; }
+    .map-controls { display: none; }
+    .node-desc { display: none; }
+    .map-node { padding: 5px 10px; }
+    .node-label { font-size: 0.7rem; }
+  }
+</style>

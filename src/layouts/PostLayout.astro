@@ -4,11 +4,6 @@ import Tag from '../components/Tag.astro';
 import SeriesNav from '../components/SeriesNav.astro';
 import type { CollectionEntry } from 'astro:content';
 
-interface UsefulFor {
-  area: string;
-  pct: number;
-}
-
 interface Props {
   title: string;
   date: Date;
@@ -19,7 +14,6 @@ interface Props {
   subsection?: string;
   seriesPosts?: CollectionEntry<'posts'>[];
   currentSlug?: string;
-  usefulFor?: UsefulFor[];
 }
 
 const {
@@ -32,7 +26,6 @@ const {
   subsection,
   seriesPosts = [],
   currentSlug = '',
-  usefulFor = [],
 } = Astro.props;
 
 const formattedDate = date.toLocaleDateString('es-AR', {
@@ -47,11 +40,6 @@ const currentIndex = sortedSeries.findIndex(p => p.slug === currentSlug);
 const prevPost = currentIndex > 0 ? sortedSeries[currentIndex - 1] : null;
 const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIndex + 1] : null;
 
-function pctColor(pct: number) {
-  if (pct >= 75) return 'var(--accent)';
-  if (pct >= 45) return 'var(--accent3)';
-  return 'var(--accent2)';
-}
 ---
 
 <BaseLayout
@@ -95,25 +83,6 @@ function pctColor(pct: number) {
             {tags.map(t => <Tag name={t} />)}
           </div>
 
-          {usefulFor.length > 0 && (
-            <div class="useful-for">
-              <span class="useful-label">útil para</span>
-              <div class="useful-bars">
-                {usefulFor.map(u => (
-                  <div class="useful-item">
-                    <span class="useful-area">{u.area}</span>
-                    <div class="useful-track">
-                      <div
-                        class="useful-fill"
-                        style={`--w: ${u.pct}%; --fill-width: ${u.pct}%; background: ${pctColor(u.pct)};`}
-                      ></div>
-                    </div>
-                    <span class="useful-pct" style={`color: ${pctColor(u.pct)}`}>{u.pct}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </header>
 
         <div class="prose">
@@ -210,9 +179,12 @@ function pctColor(pct: number) {
     font-family: var(--display);
     font-size: clamp(1.6rem, 4vw, 2.4rem);
     font-weight: 800;
-    color: var(--text-bright);
     line-height: 1.2;
     margin-bottom: 14px;
+    background: linear-gradient(135deg, var(--text-bright) 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
   .post-meta {
@@ -230,68 +202,6 @@ function pctColor(pct: number) {
     flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 20px;
-  }
-
-  /* Útil para */
-  .useful-for {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-  }
-
-  .useful-label {
-    font-family: var(--mono);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
-  }
-
-  .useful-bars {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .useful-item {
-    display: grid;
-    grid-template-columns: 140px 1fr 36px;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .useful-area {
-    font-family: var(--mono);
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .useful-track {
-    height: 4px;
-    background: var(--bg3);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .useful-fill {
-    height: 100%;
-    width: var(--w);
-    border-radius: 2px;
-    animation: fillbar 0.8s ease-out forwards;
-  }
-
-  .useful-pct {
-    font-family: var(--mono);
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-align: right;
   }
 
   /* Sidebar */
@@ -337,6 +247,11 @@ function pctColor(pct: number) {
   .toc-link:hover {
     color: var(--accent);
     background: rgba(0, 229, 255, 0.05);
+  }
+
+  .toc-link.toc-active {
+    color: var(--accent);
+    background: rgba(0, 229, 255, 0.08);
   }
 
   @media (max-width: 900px) {
@@ -411,6 +326,7 @@ function pctColor(pct: number) {
 
 <script>
   document.addEventListener('astro:page-load', () => {
+    /* ── Reading progress bar ── */
     const bar = document.getElementById('readingProgress');
     if (bar) {
       const onScroll = () => {
@@ -421,7 +337,23 @@ function pctColor(pct: number) {
         bar.style.width = `${pct}%`;
       };
       window.addEventListener('scroll', onScroll, { passive: true });
-      onScroll(); // set initial state
+      onScroll();
+    }
+
+    /* ── TOC active section tracking ── */
+    const tocLinks = document.querySelectorAll('.toc-link');
+    if (tocLinks.length > 0) {
+      const headings = document.querySelectorAll('.prose h2[id], .prose h3[id]');
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            tocLinks.forEach(l => l.classList.remove('toc-active'));
+            const active = document.querySelector(`.toc-link[href="#${entry.target.id}"]`);
+            if (active) active.classList.add('toc-active');
+          }
+        });
+      }, { rootMargin: '-80px 0px -70% 0px' });
+      headings.forEach(h => observer.observe(h));
     }
   });
 </script>

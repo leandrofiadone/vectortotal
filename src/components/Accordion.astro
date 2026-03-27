@@ -1,0 +1,80 @@
+---
+interface Props {
+  title: string;
+  open?: boolean;
+}
+const { title, open = false } = Astro.props;
+---
+
+<details class="accordion" open={open || undefined}>
+  <summary class="accordion-summary">
+    <span class="accordion-chevron" aria-hidden="true">›</span>
+    <span class="accordion-title">{title}</span>
+  </summary>
+  <div class="accordion-body">
+    <slot />
+  </div>
+</details>
+
+<style>
+  .accordion {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg2);
+    margin: 1.5rem 0;
+    overflow: hidden;
+  }
+
+  .accordion-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.2rem;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--text-bright);
+    user-select: none;
+    transition: background 0.2s;
+    list-style: none;
+  }
+
+  .accordion-summary::-webkit-details-marker { display: none; }
+  .accordion-summary::marker { display: none; content: ''; }
+
+  .accordion-summary:hover {
+    background: var(--bg3);
+  }
+
+  .accordion-chevron {
+    color: var(--accent);
+    font-size: 1.3rem;
+    line-height: 1;
+    transition: transform 0.2s ease;
+  }
+
+  details[open] > .accordion-summary .accordion-chevron {
+    transform: rotate(90deg);
+  }
+
+  .accordion-body {
+    padding: 0 1.2rem 1.2rem;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .accordion-body :global(p:first-child) { margin-top: 1rem; }
+  .accordion-body :global(p) { margin: 0.6rem 0; }
+  .accordion-body :global(ul) { margin: 0.6rem 0; padding-left: 1.2rem; }
+  .accordion-body :global(li) { margin: 0.3rem 0; }
+  .accordion-body :global(code) {
+    font-size: 0.88em;
+    background: var(--bg3);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  .accordion-body :global(a) { color: var(--accent); }
+  .accordion-body :global(pre) { margin: 0.8rem 0; }
+</style>

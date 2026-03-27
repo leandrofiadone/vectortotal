@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import KnowledgeMap from '../components/KnowledgeMap.astro';
+---
+
+<BaseLayout title="mapa" description="Mapa interactivo de conceptos de ciberseguridad — vectortotal" bodyClass="pattern-none">
+  <KnowledgeMap />
+</BaseLayout>
+
+<style>
+  :global(body.pattern-none::before),
+  :global(body.pattern-none::after) {
+    display: none;
+  }
+</style>

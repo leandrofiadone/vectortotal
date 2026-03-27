@@ -1,0 +1,378 @@
+---
+interface Props {
+  placeholder?: string;
+}
+const { placeholder = 'Escribí algo...' } = Astro.props;
+---
+
+<div class="livehash">
+  <div class="livehash-bar">
+    <div class="dots">
+      <span class="dot dot-red"></span>
+      <span class="dot dot-yellow"></span>
+      <span class="dot dot-green"></span>
+    </div>
+    <span class="livehash-title">sha-256 en vivo</span>
+  </div>
+  <div class="livehash-accent-line"></div>
+
+  <div class="livehash-body">
+    <div class="livehash-input-row">
+      <span class="livehash-prompt">input &gt;</span>
+      <input
+        type="text"
+        class="livehash-input"
+        placeholder={placeholder}
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <div class="livehash-output-row">
+      <span class="livehash-label">SHA-256</span>
+      <span class="livehash-hex"></span>
+    </div>
+
+    <div class="livehash-grid-wrap">
+      <div class="livehash-grid"></div>
+    </div>
+
+    <div class="livehash-avalanche">
+      <div class="avalanche-header">
+        <span class="avalanche-label">avalancha</span>
+        <span class="avalanche-value"></span>
+      </div>
+      <div class="avalanche-track">
+        <div class="avalanche-marker"></div>
+        <div class="avalanche-fill"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('astro:page-load', () => {
+  document.querySelectorAll('.livehash').forEach(container => {
+    const input = container.querySelector<HTMLInputElement>('.livehash-input')!;
+    const hexDisplay = container.querySelector<HTMLElement>('.livehash-hex')!;
+    const grid = container.querySelector<HTMLElement>('.livehash-grid')!;
+    const avalancheValue = container.querySelector<HTMLElement>('.avalanche-value')!;
+    const avalancheFill = container.querySelector<HTMLElement>('.avalanche-fill')!;
+    const avalancheSection = container.querySelector<HTMLElement>('.livehash-avalanche')!;
+
+    let prevHash: Uint8Array | null = null;
+    let prevHex: string = '';
+    let cells: HTMLElement[] = [];
+    let isFirstHash = true;
+
+    for (let i = 0; i < 64; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell';
+      grid.appendChild(cell);
+      cells.push(cell);
+    }
+
+    function hexFromByte(b: number): string {
+      return b.toString(16).padStart(2, '0');
+    }
+
+    function hexCharToColor(c: string): string {
+      const val = parseInt(c, 16);
+      const hue = (val / 16) * 360;
+      return `hsl(${hue}, 80%, 55%)`;
+    }
+
+    function countBitDiffs(a: Uint8Array, b: Uint8Array): number {
+      let count = 0;
+      for (let i = 0; i < a.length; i++) {
+        let xor = a[i] ^ b[i];
+        while (xor) { count += xor & 1; xor >>= 1; }
+      }
+      return count;
+    }
+
+    async function computeHash(text: string): Promise<{ bytes: Uint8Array; hex: string }> {
+      const data = new TextEncoder().encode(text);
+      const buffer = await crypto.subtle.digest('SHA-256', data);
+      const bytes = new Uint8Array(buffer);
+      const hex = Array.from(bytes).map(b => hexFromByte(b)).join('');
+      return { bytes, hex };
+    }
+
+    async function update() {
+      const text = input.value;
+      const { bytes, hex } = await computeHash(text);
+      const hasPrev = !isFirstHash;
+
+      // — Hex display with diff coloring —
+      hexDisplay.innerHTML = '';
+      for (let i = 0; i < hex.length; i++) {
+        const span = document.createElement('span');
+        span.textContent = hex[i];
+        const color = hexCharToColor(hex[i]);
+        if (!hasPrev || hex[i] !== prevHex[i]) {
+          span.style.color = color;
+          span.classList.add('hex-changed');
+        } else {
+          span.style.color = 'var(--text-dim)';
+          span.style.opacity = '0.25';
+        }
+        hexDisplay.appendChild(span);
+      }
+
+      // — Grid with diff —
+      for (let i = 0; i < 64; i++) {
+        const color = hexCharToColor(hex[i]);
+        const cell = cells[i];
+        const changed = !hasPrev || hex[i] !== prevHex[i];
+
+        cell.style.background = color;
+
+        if (changed) {
+          cell.style.opacity = '1';
+          cell.style.boxShadow = `0 0 8px ${color}50`;
+          cell.classList.remove('cell-flash');
+          void cell.offsetWidth;
+          cell.classList.add('cell-flash');
+        } else {
+          cell.style.opacity = '0.1';
+          cell.style.boxShadow = 'none';
+          cell.classList.remove('cell-flash');
+        }
+      }
+
+      // — Avalanche bar —
+      if (prevHash && hasPrev) {
+        avalancheSection.style.opacity = '1';
+        const diff = countBitDiffs(prevHash, bytes);
+        const pct = (diff / 256) * 100;
+        const pctStr = pct.toFixed(1);
+
+        avalancheValue.textContent = `${diff} de 256 bits cambiaron — ${pctStr}%`;
+        avalancheFill.style.width = `${pctStr}%`;
+
+        const distance = Math.abs(50 - pct);
+        if (distance < 6) {
+          avalancheFill.style.background = 'var(--accent)';
+          avalancheValue.style.color = 'var(--accent)';
+        } else if (distance < 15) {
+          avalancheFill.style.background = 'var(--accent3)';
+          avalancheValue.style.color = 'var(--accent3)';
+        } else {
+          avalancheFill.style.background = 'var(--accent2)';
+          avalancheValue.style.color = 'var(--accent2)';
+        }
+      } else {
+        avalancheSection.style.opacity = '0.3';
+        avalancheValue.textContent = 'cambiá un carácter...';
+        avalancheValue.style.color = 'var(--text-dim)';
+        avalancheFill.style.width = '0%';
+      }
+
+      prevHash = bytes;
+      prevHex = hex;
+      isFirstHash = false;
+    }
+
+    update();
+    input.addEventListener('input', update);
+  });
+});
+</script>
+
+<style>
+  .livehash {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: var(--mono);
+    margin: 1.5rem 0;
+  }
+
+  .livehash-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-red    { background: #ff5f57; }
+  .dot-yellow { background: #febc2e; }
+  .dot-green  { background: #28c840; }
+
+  .livehash-title {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    flex: 1;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .livehash-accent-line {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+
+  .livehash-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .livehash-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .livehash-prompt {
+    color: var(--accent);
+    font-size: 0.8rem;
+    flex-shrink: 0;
+  }
+
+  .livehash-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .livehash-input:focus {
+    border-color: var(--accent);
+  }
+
+  .livehash-input::placeholder {
+    color: var(--text-dim);
+    opacity: 0.6;
+  }
+
+  .livehash-output-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .livehash-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .livehash-hex {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    word-break: break-all;
+    letter-spacing: 0.04em;
+  }
+
+  .livehash-hex :global(.hex-changed) {
+    transition: color 0.15s ease;
+  }
+
+  .livehash-grid-wrap {
+    padding: 4px 0;
+  }
+
+  .livehash-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 1fr);
+    gap: 3px;
+  }
+
+  .livehash-grid :global(.grid-cell) {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    transition: background 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+  }
+
+  .livehash-grid :global(.grid-cell.cell-flash) {
+    animation: cellPulse 0.3s ease-out;
+  }
+
+  @keyframes cellPulse {
+    0% { transform: scale(1.35); }
+    100% { transform: scale(1); }
+  }
+
+  /* — Avalanche bar — */
+  .livehash-avalanche {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    transition: opacity 0.3s;
+  }
+
+  .avalanche-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .avalanche-label {
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .avalanche-value {
+    font-size: 0.78rem;
+    color: var(--accent);
+    font-weight: 600;
+    transition: color 0.3s;
+  }
+
+  .avalanche-track {
+    height: 6px;
+    background: var(--bg3);
+    border-radius: 3px;
+    position: relative;
+    overflow: visible;
+  }
+
+  .avalanche-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 3px;
+    background: var(--accent);
+    transition: width 0.4s ease, background 0.3s ease;
+  }
+
+  .avalanche-marker {
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: var(--text-dim);
+    border-radius: 1px;
+    opacity: 0.4;
+  }
+
+  @media (max-width: 640px) {
+    .livehash-grid {
+      grid-template-columns: repeat(8, 1fr);
+    }
+
+    .livehash-hex {
+      font-size: 0.68rem;
+    }
+  }
+</style>

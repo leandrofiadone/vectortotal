@@ -15,6 +15,8 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Cuando vimos DHCP, tu dispositivo recibió una IP, un gateway y un DNS. Ahora sabe *a dónde* tiene que enviar los paquetes. Pero hay un problema: Ethernet no trabaja con IPs — trabaja con **direcciones MAC**. Para armar el frame de capa 2, necesita saber la MAC del destino. Ahí entra ARP.
 
@@ -79,6 +81,17 @@ El escenario: el host `192.168.66.89` quiere comunicarse con `192.168.66.1` (el 
 </Step>
 
 <img src="/images/arp/arp-request-reply.png" alt="Diagrama ARP Request (broadcast a toda la red) y ARP Reply (unicast de vuelta al origen), con las tablas ARP en ambos extremos" style="border-radius: 4px; margin: 1.5rem 0;" />
+
+<Mermaid title="Resolucion ARP" chart={`
+flowchart TD
+  NEED["Host A necesita la MAC de 192.168.66.1"]
+  NEED --> REQ["ARP Request\nbroadcast ff:ff:ff:ff:ff:ff"]
+  REQ --> ALL["Todos los hosts de la red reciben"]
+  ALL --> MATCH{"Alguno tiene\n192.168.66.1?"}
+  MATCH -->|"si"| REPLY["Host B responde\nARP Reply unicast\nMAC: 44:df:65:d8:fe:6c"]
+  MATCH -.->|"no"| DROP["Ignora"]
+  REPLY --> CACHE["Host A guarda en ARP table\n192.168.66.1 → 44:df:65:d8:fe:6c"]
+`} />
 
 ---
 
@@ -185,3 +198,9 @@ tcpdump -i eth0 arp -n
 # Filtro en Wireshark
 arp
 ```
+
+<Quiz question="¿Por qué ARP usa broadcast en lugar de unicast para la Request?" hint="Pensá en qué informacion tiene el host en el momento de enviar la Request.">
+
+Porque el host que inicia la comunicacion **no conoce la MAC de destino** -- justamente eso es lo que necesita averiguar. Sin la MAC, no puede armar un frame Ethernet unicast dirigido a un dispositivo especifico. La unica opcion es mandar el mensaje a **todos** los dispositivos de la red (`ff:ff:ff:ff:ff:ff`), y que el que tenga la IP buscada responda con su MAC via unicast.
+
+</Quiz>

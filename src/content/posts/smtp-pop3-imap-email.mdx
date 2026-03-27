@@ -13,22 +13,19 @@ draft: false
 
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
 
-FTP usaba dos conexiones. El email usa tres protocolos distintos — uno para enviar, uno para descargar, uno para sincronizar — cada uno en su propio puerto, cada uno en texto plano. No es un sistema monolítico sino una cadena: si interceptás cualquiera de los eslabones, leés el mensaje.
+FTP usaba dos conexiones. El email usa tres protocolos distintos — uno para enviar, uno para descargar, uno para sincronizar — cada uno en su propio puerto, cada uno en texto plano. No es un sistema monolítico sino una cadena: si interceptás cualquiera de los eslabones, leés el mensaje. El mensaje pasa por al menos dos servidores antes de llegar al destinatario — en cada tramo viaja sin cifrado, visible para cualquiera con acceso al tráfico en ese segmento.
 
-```
-[Tu cliente de email]
-       │  SMTP (envío)
-       ▼
-[Servidor de correo saliente]
-       │  SMTP (relay)
-       ▼
-[Servidor del destinatario]
-       ├─ POP3 → descarga y borra
-       └─ IMAP → sincroniza, queda en servidor
-```
-
-El mensaje pasa por al menos dos servidores antes de llegar al destinatario. En cada tramo viaja sin cifrado — visible para cualquiera con acceso al tráfico en ese segmento.
+<Mermaid title="Flujo completo de un email" chart={`
+flowchart LR
+  E["Emisor"] -->|"SMTP :25"| S1["Servidor\nSaliente"]
+  S1 -->|"SMTP relay"| S2["Servidor\nDestino"]
+  S2 -->|"POP3 :110\ndescarga y borra"| R1["Receptor"]
+  S2 -.->|"IMAP :143\nsincroniza"| R2["Receptor\nmulti-dispositivo"]
+`} />
 
 ---
 
@@ -199,12 +196,17 @@ D OK Logout completed.
 
 ## POP3 vs. IMAP
 
-| | POP3 | IMAP |
-|-|------|------|
-| **Almacenamiento** | Local — borra del servidor | Servidor — sincronizado |
-| **Multi-dispositivo** | No | Sí |
-| **Offline** | Bien — todo queda local | Requiere conexión para cambios |
-| **Uso típico** | Cliente único, conexión esporádica | Gmail, Outlook, servicios modernos |
+<Compare
+  headers={["POP3", "IMAP"]}
+  icons={["📥", "🔄"]}
+  colors={["#ffd32a", "#00e5ff"]}
+  rows={[
+    ["Almacenamiento", "Local — borra del servidor", "Servidor — sincronizado"],
+    ["Multi-dispositivo", "No", "Sí"],
+    ["Offline", "Bien — todo queda local", "Requiere conexión para cambios"],
+    ["Uso típico", "Cliente único, conexión esporádica", "Gmail, Outlook, servicios modernos"],
+  ]}
+/>
 
 <Callout type="warning">
   Los tres protocolos — SMTP (25), POP3 (110), IMAP (143) — transmiten todo en texto plano. Las versiones cifradas son SMTPS (587), POP3S (995) e IMAPS (993).
@@ -228,6 +230,14 @@ imap
 # Lookup de servidores de correo de un dominio
 nslookup -type=MX ejemplo.com
 ```
+
+---
+
+<Quiz question="¿Qué protocolo usás para enviar un email y cuál para recibirlo?" hint="Son protocolos distintos — uno va de tu cliente al servidor, los otros del servidor a tu cliente.">
+
+Para **enviar** usás **SMTP** (puerto 25, o 587 con cifrado). Para **recibir** usás **POP3** (puerto 110) si querés descargar y borrar del servidor, o **IMAP** (puerto 143) si querés sincronizar entre dispositivos. Son tres protocolos separados que trabajan en conjunto.
+
+</Quiz>
 
 ---
 

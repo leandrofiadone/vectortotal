@@ -15,6 +15,9 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Tenés la IP. DNS te la dio. Ahora si abrís una conexión a esa dirección en el puerto 80, el servidor del otro lado va a esperar que le hables en un formato específico. No cualquier texto — HTTP. Un protocolo que define exactamente cómo se pide un recurso y cómo se responde. Y que, en su versión sin cifrado, cualquiera en la red puede leer completo.
 
@@ -49,6 +52,18 @@ HTTP funciona en pares: el cliente siempre inicia, el servidor siempre responde.
 <Step n={3} title="El browser renderiza" last={true}>
   Interpreta el HTML, descubre recursos adicionales (CSS, JS, imágenes) y hace **nuevos requests** por cada uno. Una sola página puede generar decenas de intercambios HTTP.
 </Step>
+
+<Mermaid title="Ciclo HTTP request / response" chart={`
+sequenceDiagram
+  participant B as Browser
+  participant S as Servidor
+  B->>S: GET /index.html HTTP/1.1
+  S-->>B: 200 OK + HTML
+  B->>S: GET /style.css HTTP/1.1
+  S-->>B: 200 OK + CSS
+  B->>S: GET /logo.png HTTP/1.1
+  S-->>B: 200 OK + imagen
+`} />
 
 ---
 
@@ -161,12 +176,17 @@ Un `404` dice que el recurso no existe. Un `403` dice que existe — pero no te 
 
 HTTP envía todo en **texto plano** — cualquiera en la misma red que capture el tráfico puede leer el contenido completo. HTTPS resuelve esto agregando **TLS** entre HTTP y TCP.
 
-| | HTTP | HTTPS |
-|-|------|-------|
-| **Puerto** | 80 | 443 |
-| **Cifrado** | No — texto plano | Sí — TLS |
-| **Autenticación del servidor** | No | Sí — certificado digital |
-| **Integridad** | No — modificable en tránsito | Sí — detecta alteraciones |
+<Compare
+  headers={["HTTP", "HTTPS"]}
+  icons={["🔓", "🔒"]}
+  colors={["#ff6b6b", "#00e5ff"]}
+  rows={[
+    ["Puerto", "80", "443"],
+    ["Cifrado", "No — texto plano", "Si — TLS"],
+    ["Autenticacion del servidor", "No", "Si — certificado digital"],
+    ["Integridad", "No — modificable en transito", "Si — detecta alteraciones"],
+  ]}
+/>
 
 <Callout type="danger">
   En redes WiFi públicas, interceptar tráfico HTTP plano es trivial con Wireshark o mitmproxy. Cualquier cosa que mandes por HTTP — credenciales incluidas — puede ser capturada por cualquiera en la misma red.
@@ -192,6 +212,14 @@ http
 # Capturar HTTP en tiempo real con tcpdump
 tcpdump -i eth0 port 80 -A -n
 ```
+
+---
+
+<Quiz question="Un servidor responde con 403 Forbidden a tu request. ¿El recurso existe?" hint="Compara lo que significa 403 con lo que significa 404.">
+
+Si. Un **403 Forbidden** confirma que el recurso **existe**, pero el servidor se niega a dartelo (no tenes permisos). Si no existiera, la respuesta seria **404 Not Found**. En pentesting, un 403 es informacion valiosa: te dice que hay algo ahi, aunque no puedas accederlo directamente.
+
+</Quiz>
 
 ---
 

@@ -15,6 +15,9 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Tabs from '../../components/Tabs.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Antes de que tu browser envíe un solo byte, ya salió un paquete de tu máquina que no pediste explícitamente. Una consulta DNS. Viajó, volvió con una IP, y recién ahí arrancó todo lo demás. Ese mecanismo invisible es el primero que vale la pena entender — porque es el primero que ocurre en cualquier conexión.
 
@@ -50,6 +53,23 @@ Escribís `example.com` y el sistema ejecuta este proceso en milisegundos:
 </Step>
 
 ¿Y si el resolver responde con una IP que no es la real? Eso es DNS spoofing — alguien en el camino intercepta la consulta y devuelve lo que quiere antes de que llegue la respuesta legítima. Por ahora asumí que el resolver es confiable. No siempre lo es.
+
+<Mermaid title="Resolución DNS recursiva" chart={`
+sequenceDiagram
+  participant C as Cliente
+  participant R as Resolver
+  participant Root as Servidor Raiz
+  participant TLD as Servidor TLD (.com)
+  participant Auth as Servidor Autoritativo
+  C->>R: Quien es example.com?
+  R->>Root: Quien es example.com?
+  Root-->>R: Preguntale al TLD de .com
+  R->>TLD: Quien es example.com?
+  TLD-->>R: Preguntale a ns1.example.com
+  R->>Auth: Quien es example.com?
+  Auth-->>R: 93.184.215.14
+  R-->>C: 93.184.215.14
+`} />
 
 ---
 
@@ -177,17 +197,34 @@ whois -h whois.arin.net 8.8.8.8  # WHOIS de una IP
 
 ## Comandos de referencia
 
+### Consultas DNS
+
+<Tabs labels={["nslookup", "dig"]}>
+  <div class="tab-panel active">
+
 ```bash
-# DNS — consultas básicas
 nslookup ejemplo.com                 # registro A
 nslookup -type=MX ejemplo.com        # servidores de correo
+nslookup -type=AAAA ejemplo.com      # solo IPv6
 nslookup ejemplo.com 8.8.8.8         # forzar DNS de Google
+```
 
-# dig — alternativa más detallada
+  </div>
+  <div class="tab-panel">
+
+```bash
 dig ejemplo.com                      # registro A con TTL y flags
 dig MX ejemplo.com                   # registro MX
-dig AAAA ejemplo.com +short          # solo la IPv6, sin decoración
+dig AAAA ejemplo.com +short          # solo la IPv6, sin decoracion
+dig ejemplo.com @8.8.8.8             # forzar DNS de Google
+```
 
+  </div>
+</Tabs>
+
+### WHOIS y captura de trafico
+
+```bash
 # WHOIS
 whois ejemplo.com                    # info de dominio
 whois 1.1.1.1                        # info de IP (Cloudflare)
@@ -199,6 +236,14 @@ tshark -r captura.pcap -Y dns        # filtrar DNS en un archivo
 # Filtro en Wireshark
 dns
 ```
+
+---
+
+<Quiz question="¿Cuál es la diferencia entre un registro A y un CNAME?" hint="Pensá en qué devuelve cada uno: una dirección o un alias.">
+
+El registro **A** mapea un dominio directamente a una **dirección IPv4** (ej: `example.com → 93.184.215.14`). El **CNAME** es un **alias** que apunta un dominio a otro dominio (ej: `www.example.com → example.com`). El CNAME necesita una resolución adicional para llegar a la IP final.
+
+</Quiz>
 
 ---
 

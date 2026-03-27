@@ -25,6 +25,11 @@ html {
   scroll-behavior: smooth;
 }
 
+::selection {
+  background: rgba(0, 229, 255, 0.2);
+  color: var(--text-bright);
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
@@ -78,13 +83,13 @@ body.pattern-grid::after {
 body.pattern-lines::before {
   background-image: repeating-linear-gradient(
     45deg,
-    rgba(30,48,64,0.6) 0px,
-    rgba(30,48,64,0.6) 1px,
+    rgba(30,48,64,0.4) 0px,
+    rgba(30,48,64,0.4) 1px,
     transparent 1px,
     transparent 28px
   );
   background-size: 40px 40px;
-  opacity: 0.5;
+  opacity: 0.18;
 }
 
 body.pattern-lines::after {
@@ -339,20 +344,27 @@ a:hover {
   background-clip: text;
   color: transparent;
 }
+.prose h2::before {
+  content: '## ';
+  -webkit-text-fill-color: var(--accent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 0.8em;
+  opacity: 0.35;
+}
+
 .prose h3 { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
 
 .prose p { margin-bottom: 1.2em; }
 
-.prose pre {
-  background: var(--panel) !important;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 4px;
-  padding: 20px;
-  overflow-x: auto;
+/* Expressive Code overrides */
+.prose .expressive-code {
   margin: 1.5em 0;
-  font-family: var(--mono);
-  font-size: 0.85rem;
+}
+
+.prose .expressive-code:hover {
+  filter: brightness(1.03);
 }
 
 .prose code:not(pre code) {
@@ -386,15 +398,20 @@ a:hover {
 
 .prose hr {
   border: none;
-  border-top: 1px solid var(--border);
-  margin: 2.5em 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), var(--accent), var(--border), transparent);
+  margin: 3em 0;
 }
 
 .prose table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 1.5em 0;
   font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .prose th {
@@ -403,24 +420,41 @@ a:hover {
   font-family: var(--mono);
   padding: 10px 14px;
   text-align: left;
-  border: 1px solid var(--border);
   font-size: 0.8rem;
   letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
+
+.prose th:last-child { border-right: none; }
 
 .prose td {
   padding: 10px 14px;
-  border: 1px solid var(--border);
   vertical-align: top;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
 }
+
+.prose td:last-child { border-right: none; }
+.prose tr:last-child td { border-bottom: none; }
 
 .prose tr:nth-child(even) { background: rgba(255,255,255,0.02); }
 .prose tr:hover { background: rgba(0, 229, 255, 0.03); }
 
 .prose a {
   color: var(--accent);
-  text-decoration: underline;
-  text-decoration-color: rgba(0,229,255,0.3);
+  text-decoration: none;
+  background-image: linear-gradient(var(--accent), var(--accent));
+  background-position: 0% 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  transition: background-size 0.3s ease, color 0.2s;
+  padding-bottom: 1px;
+}
+
+.prose a:hover {
+  background-size: 100% 1px;
+  color: var(--accent);
 }
 
 .prose strong { color: var(--text-bright); font-weight: 700; }
@@ -467,6 +501,18 @@ a:hover {
   margin-top: 8px;
   font-style: italic;
 }
+
+/* KaTeX math */
+.katex { color: var(--text-bright); font-size: 1.05em; }
+.prose .katex-display {
+  margin: 1.2em 0;
+  padding: 12px 16px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.prose .katex-display > .katex { color: var(--accent); }
 
 /* Mobile */
 @media (max-width: 768px) {

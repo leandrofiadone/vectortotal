@@ -1,0 +1,370 @@
+---
+title: "SSH, GPG y la cadena de confianza"
+date: 2026-03-27
+excerpt: "Del par de claves a la práctica: cómo SSH protege conexiones, cómo GPG cifra archivos, cómo los certificados TLS hacen funcionar HTTPS, y por qué la criptografía asimétrica ya está en todos lados."
+tags: ["crypto", "fundamentos"]
+series: crypto
+usefulFor:
+  - { area: "administración de servidores", pct: 100 }
+  - { area: "pentesting", pct: 85 }
+  - { area: "CTF / hacking", pct: 80 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
+import BarChart from '../../components/BarChart.astro';
+
+
+Te dan acceso a un servidor. Abrís la terminal, escribís `ssh usuario@servidor`, y aparece un mensaje que probablemente nunca leíste del todo. Tipeás "yes", entrás, y seguís con tu vida. En esos milisegundos tu máquina autenticó al servidor, negoció un secreto compartido con Diffie-Hellman, y levantó un túnel cifrado que protege cada byte entre vos y ese equipo.
+
+Eso es la teoría del [post anterior](/salas/crypto/criptografia-asimetrica) puesta a trabajar. En este: SSH, GPG, certificados TLS y la cadena de confianza.
+
+---
+
+## SSH — Secure Shell
+
+SSH es el protocolo estándar para conectarte de forma segura a un equipo remoto. Internamente usa algoritmos como RSA o Ed25519 — [los mismos del post anterior](/salas/crypto/criptografia-asimetrica) — aplicados a conexiones de red.
+
+### Los dos pasos de autenticación
+
+Cada conexión SSH tiene **dos autenticaciones separadas**:
+
+<Step n={1} title="El cliente autentica al servidor" label="fingerprint">
+  La primera vez que te conectás, SSH te muestra el **fingerprint** del servidor:
+
+  ```
+  The authenticity of host 'servidor.com (192.168.1.50)' can't be established.
+  ED25519 key fingerprint is SHA256:AbCdEfGhIjKlMnOpQr...
+  Are you sure you want to continue connecting (yes/no)?
+  ```
+
+  Ese mensaje que todo el mundo ignora es una protección contra ataques **MITM**: ¿este servidor es realmente quien dice ser? Si decís "yes", el fingerprint se guarda en `~/.ssh/known_hosts`. Si en una conexión futura cambia — posible suplantación — SSH bloquea la conexión.
+</Step>
+
+<Step n={2} title="El servidor autentica al cliente" label="identidad" last={true}>
+  Ahora el servidor verifica tu identidad. Dos métodos:
+
+  - **Contraseña** — te la pide en cada conexión.
+  - **Par de claves** — tu clave privada genera una **firma digital** que el servidor verifica con tu clave pública. La privada nunca viaja.
+</Step>
+
+<Mermaid title="Flujo de autenticacion SSH" chart={`
+flowchart TD
+  TCP["Conexion TCP :22"] --> VER["Intercambio de versiones SSH"]
+  VER --> FP["Servidor envia fingerprint"]
+  FP --> CHECK{"Cliente verifica\nen known_hosts"}
+  CHECK -->|"coincide"| DH["Intercambio Diffie-Hellman"]
+  CHECK -.->|"no coincide"| WARN["Advertencia MITM"]
+  DH --> TUNEL["Canal cifrado establecido"]
+  TUNEL --> AUTH{"Autenticacion"}
+  AUTH -->|"clave publica"| SIGN["Cliente firma con privada\nServidor verifica con publica"]
+  AUTH -->|"password"| PASS["Envia password cifrado"]
+  SIGN --> OK["Acceso concedido"]
+  PASS --> OK
+`} />
+
+### authorized_keys y permisos
+
+El servidor guarda las claves públicas autorizadas en `~/.ssh/authorized_keys` — una por línea. El flujo correcto:
+
+```bash
+# 1. Generar el par en tu máquina (nunca en el servidor)
+ssh-keygen -t ed25519
+
+# 2. Copiar solo la pública al servidor
+ssh-copy-id usuario@servidor
+
+# 3. Conectarse (ya sin contraseña)
+ssh usuario@servidor
+
+# Especificar otra clave privada
+ssh -i ~/.ssh/mi_clave usuario@servidor
+
+# Modo verbose (para depurar problemas de conexión)
+ssh -v usuario@servidor
+```
+
+Los permisos son críticos — SSH rechaza tus claves si son demasiado accesibles:
+
+```bash
+chmod 700 ~/.ssh                 # solo vos podés acceder al directorio
+chmod 600 ~/.ssh/id_ed25519      # solo vos podés leer la clave privada
+chmod 644 ~/.ssh/id_ed25519.pub  # la pública puede ser legible
+chmod 600 ~/.ssh/authorized_keys # solo vos podés modificar las autorizadas
+```
+
+<Callout type="danger">
+  Si los permisos de tu clave privada son más abiertos que `600`, SSH la ignora y vuelve a pedir contraseña — sin errores ni advertencias. Puede costarte horas de debugging si no lo sabés.
+</Callout>
+
+---
+
+## Algoritmos de claves SSH
+
+Los algoritmos forman una familia con evolución clara:
+
+```
+DSA (el original, obsoleto desde 2013)
+└── ECDSA (DSA + curvas elípticas, claves más cortas)
+     └── ECDSA-SK (ECDSA + hardware físico tipo YubiKey)
+
+EdDSA (diseño moderno independiente)
+└── Ed25519 (el recomendado hoy)
+     └── Ed25519-SK (Ed25519 + hardware físico)
+
+RSA (sigue vigente con claves de 4096 bits)
+```
+
+| Algoritmo | Estado | Tamaño de clave | Velocidad | Recomendado |
+|-----------|--------|-----------------|-----------|-------------|
+| **DSA** | Obsoleto | 1024 bits fijos | Rápido | No |
+| **RSA** | Vigente | 2048-4096 bits | Lento | Solo con 4096 bits |
+| **ECDSA** | Actual | 256-521 bits | Rápido | Aceptable |
+| **[Ed25519](https://en.wikipedia.org/wiki/EdDSA#Ed25519)** | Moderno | 256 bits | Muy rápido | Siempre |
+
+<BarChart
+  title="Tamaño de clave por algoritmo SSH"
+  unit=" bits"
+  bars={[
+    { label: "RSA", value: 4096, color: "#ffd32a" },
+    { label: "DSA", value: 1024, color: "#ff4757" },
+    { label: "ECDSA", value: 521, color: "#00e5ff" },
+    { label: "Ed25519", value: 256, color: "#a29bfe" },
+  ]}
+/>
+
+El sufijo **-SK** (Security Key) significa que la clave requiere un **dispositivo físico** (como una [YubiKey](https://www.yubico.com/)) para usarse. Aunque alguien obtenga el archivo, no puede firmar sin el hardware conectado.
+
+```bash
+# Generar clave Ed25519 (la recomendada)
+ssh-keygen -t ed25519
+
+# Con comentario descriptivo (útil si tenés varias)
+ssh-keygen -t ed25519 -C "trabajo@empresa.com"
+
+# Con hardware security key (necesitás un dispositivo FIDO2)
+ssh-keygen -t ed25519-sk
+```
+
+---
+
+## Claves privadas SSH — buenas prácticas
+
+Tu clave privada da acceso a todos los servidores donde la configuraste. Tratala como una contraseña que nunca expira.
+
+### La passphrase
+
+Al generar una clave, `ssh-keygen` te pide una passphrase que **cifra la clave privada en tu disco**. Es protección local: no te identifica ante el servidor ni viaja por la red — solo desbloquea el archivo en tu máquina. Si alguien copia el archivo, sin la passphrase no puede usarlo.
+
+### Las tres capas de protección
+
+| Capa | Qué protege | Contra qué |
+|------|------------|------------|
+| **1. Passphrase** | Cifra el archivo de la clave | Alguien que copia el archivo de tu disco |
+| **2. Permisos 600** | Solo el dueño puede leerla | Otros usuarios del mismo sistema |
+| **3. Hardware -SK** | Requiere dispositivo físico para firmar | Incluso si tienen archivo + passphrase |
+
+Idealmente usás las tres, pero como mínimo: passphrase + permisos 600.
+
+---
+
+## Contraseñas vs claves SSH
+
+¿Por qué claves en lugar de contraseña? La diferencia es fundamental:
+
+<Compare
+  headers={["Contraseña", "Clave SSH"]}
+  icons={["🔓", "🔐"]}
+  colors={["#ff4757", "#00e5ff"]}
+  rows={[
+    ["Viaja por la red", "Sí, en cada conexión", "Nunca — solo viaja una firma digital"],
+    ["Puede interceptarse", "Sí, si el canal se compromete", "No — la firma es única por sesión"],
+    ["Puede adivinarse", "Sí — brute-force, diccionario", "No — espacio de claves astronómico"],
+    ["Puede filtrarse del servidor", "Sí, si guarda hashes débiles", "No — solo tiene la pública"],
+    ["Reutilizable si se captura", "Sí — funciona siempre", "No — firma cambia en cada sesión"],
+  ]}
+/>
+
+La clave privada solo está en riesgo si alguien accede a tu máquina. La contraseña se transmite en cada conexión.
+
+---
+
+## Certificados y cadena de confianza
+
+Cuando entrás a `https://tubanco.com`, ¿cómo sabe tu browser que está hablando con el banco real y no con un impostor?
+
+En 2011, la respuesta falló. La autoridad certificadora holandesa [DigiNotar](https://en.wikipedia.org/wiki/DigiNotar) fue hackeada. Los atacantes emitieron certificados falsos para `*.google.com` y los usaron para interceptar el tráfico de usuarios iraníes que creían estar hablando con Google. Gmail, búsquedas, todo pasaba por los atacantes sin una sola advertencia — el candado verde estaba ahí, el certificado parecía válido.
+
+Cuando se descubrió, todos los browsers revocaron la confianza en DigiNotar. La empresa quebró en semanas. Un solo eslabón roto tumbó toda la cadena.
+
+Esa cadena — la **cadena de confianza** — es lo que hace funcionar HTTPS.
+
+### Cómo funciona
+
+<Step n={1} title="Root CA — la autoridad raíz" label="base">
+  Tu SO y tu browser vienen con una lista de **Root CAs** preinstaladas: DigiCert, Let's Encrypt, GlobalSign, entre otras. No las elegiste vos — vinieron con el sistema. Son el punto de partida de toda la confianza.
+</Step>
+
+<Step n={2} title="CA intermedia — avalada por la Root" label="intermedia">
+  La Root CA firma certificados para **CAs intermedias**, que a su vez firman los de los sitios. Si una intermedia se compromete (como DigiNotar), se revoca sin destruir toda la cadena.
+</Step>
+
+<Step n={3} title="Certificado del sitio" label="sitio">
+  El sitio tiene un certificado firmado por una CA intermedia. Contiene la **clave pública del servidor**, el **dominio**, la **fecha de expiración** y la **firma digital** de la CA emisora.
+</Step>
+
+<Step n={4} title="Tu browser verifica la cadena" label="candado" last={true}>
+  Al conectarte por HTTPS, tu browser verifica cada eslabón: ¿el certificado fue firmado por una CA intermedia válida? ¿Esa intermedia fue avalada por una Root CA conocida? Todo verifica: **candado**. Algo falla: **advertencia de seguridad**.
+</Step>
+
+<Callout type="warning">
+  Si ves una advertencia de certificado en un sitio que visitás siempre, **no la ignores**. Puede significar una interceptación activa, un certificado vencido, o un servidor comprometido.
+</Callout>
+
+### TLS y HTTPS
+
+Para tener **HTTPS** necesitás un **certificado TLS**. Sin él, el tráfico viaja en texto plano — cualquiera en la red puede leerlo.
+
+| Opción | Costo | Renovación | Caso de uso |
+|--------|-------|-----------|-------------|
+| **[Let's Encrypt](https://letsencrypt.org/)** | Gratis | Automática cada 90 días | La opción estándar hoy |
+| **CA comercial** (DigiCert, Comodo, etc.) | Pago anual | Manual | Validación extendida (EV) para empresas |
+
+```bash
+# Obtener certificado con Let's Encrypt
+sudo certbot --nginx -d tudominio.com
+
+# Verificar renovación automática
+sudo certbot renew --dry-run
+```
+
+---
+
+## GPG / PGP
+
+En 2013, Edward Snowden necesitaba contactar periodistas para filtrar documentos sobre el programa de vigilancia masiva de la NSA. Cualquier canal podía estar vigilado. Intentó convencer a Glenn Greenwald de instalar GPG — Greenwald lo encontró complicado y no lo hizo durante meses. Snowden terminó contactando a Laura Poitras, que ya lo usaba. Toda la comunicación que detonó una de las filtraciones más grandes de la historia fue cifrada con esta herramienta. La NSA no pudo leer esos mensajes.
+
+**[GPG](https://gnupg.org/)** (GNU Privacy Guard) es la implementación open-source del estándar **PGP** (Pretty Good Privacy), creado en 1991 por [Phil Zimmermann](https://en.wikipedia.org/wiki/Phil_Zimmermann). Sirve para **cifrar archivos, cifrar emails y firmar digitalmente** — la misma criptografía asimétrica del [post anterior](/salas/crypto/criptografia-asimetrica), pero aplicada a archivos y mensajes en lugar de conexiones de red.
+
+### Flujo de uso
+
+<Step n={1} title="Compartís tu clave pública">
+  La publicás en un keyserver, la mandás por email, la subís a tu perfil.
+</Step>
+
+<Step n={2} title="Te cifran un mensaje">
+  Alguien cifra un archivo con tu clave pública. El resultado es un `.gpg` que solo vos podés abrir.
+</Step>
+
+<Step n={3} title="Descifras con tu clave privada" last={true}>
+  GPG lee el **Key ID** incrustado en el archivo cifrado, busca la clave correspondiente en tu llavero local y descifra. Si no la tenés, te muestra el ID que necesitás importar.
+</Step>
+
+### Comandos esenciales
+
+```bash
+# Generar par de claves
+gpg --full-gen-key
+
+# Listar claves en tu llavero
+gpg --list-keys
+
+# Exportar tu clave pública (formato texto para compartir)
+gpg --export --armor tu_email@ejemplo.com > mi_publica.asc
+
+# Importar clave de alguien
+gpg --import clave.asc
+
+# Cifrar un archivo para un destinatario
+gpg --encrypt --recipient bob@ejemplo.com archivo.txt
+
+# Descifrar
+gpg --decrypt archivo.txt.gpg
+
+# Firmar / verificar
+gpg --sign archivo.txt
+gpg --verify archivo.txt.sig
+```
+
+### Algoritmos
+
+| Algoritmo | Estado | Recomendado |
+|-----------|--------|-------------|
+| **ECC / Curve25519** | Moderno | Sí — claves más cortas, misma seguridad |
+| **RSA 4096** | Vigente | Funciona, pero ECC es mejor |
+| **DSA** | Obsoleto | No |
+
+La passphrase y las capas de protección funcionan igual que en SSH.
+
+### GPG en CTFs
+
+Si la passphrase es débil, se crackea con el mismo patrón del [post anterior](/salas/crypto/criptografia-asimetrica): `gpg2john clave.key > hash.txt` y después John the Ripper.
+
+### Quiénes lo usan
+
+- **Periodistas** — comunicación cifrada con fuentes (caso Snowden/Poitras)
+- **Desarrolladores** — firmar commits en GitHub (el sello "Verified")
+- **Sysadmins** — cifrar backups antes de subirlos a la nube
+- **Distribuciones Linux** — firman cada paquete para garantizar integridad
+
+---
+
+## Hashing — puente al próximo tema
+
+El hashing apareció varias veces en estos dos posts sin definición formal: en firmas digitales (se firma el hash, no el documento entero), en John the Ripper (ataca hashes, no contraseñas directamente), en certificados (la cadena usa hashes para verificar cada eslabón).
+
+Un hash toma cualquier dato — 1 KB o 4 GB — y produce una cadena de **longitud fija**. Siempre el mismo largo. Y es **irreversible**: del hash no se puede volver al dato original.
+
+Casos de uso: verificar integridad de archivos, guardar contraseñas sin almacenarlas en texto plano, firmas digitales, blockchain.
+
+El próximo post cubre **Hashing en profundidad**: MD5, SHA-1, SHA-256, colisiones y por qué MD5 ya no es seguro.
+
+---
+
+## ¿Dónde se usa todo esto?
+
+- **HTTPS** — la cadena de confianza de arriba es lo que tu browser verificó para mostrar esta página. Diffie-Hellman negoció la clave que cifra lo que estás leyendo.
+- **WhatsApp** — cifrado E2E con criptografía asimétrica. Los servidores transmiten pero no pueden leer.
+- **Face ID / Windows Hello** — la biometría se almacena localmente con criptografía. Tu cara nunca viaja a un servidor.
+- **Actualizaciones de Windows** — cada update lleva firma digital. Si no verifica, el SO la rechaza.
+- **Pagar con tarjeta online** — el número viaja cifrado por TLS dentro de la cadena de confianza.
+
+---
+
+<Quiz question="¿Cuál es la diferencia entre cifrar y firmar con GPG?" hint="Pensá en qué clave usás para cada operación y qué garantiza cada una.">
+
+**Cifrar** usa la **clave pública del destinatario** — solo esa persona puede leer el mensaje. **Firmar** usa tu **clave privada** — cualquiera puede verificar que vos lo escribiste. Cifrar protege la confidencialidad. Firmar protege la autenticidad e integridad.
+
+</Quiz>
+
+---
+
+## Glosario rápido
+
+| Término | Definición |
+|---------|-----------|
+| **Criptografía** | Ciencia de proteger comunicaciones mediante matemática |
+| **Criptoanálisis** | Estudio de cómo romper sistemas criptográficos |
+| **Cifrado asimétrico** | Sistema con dos claves vinculadas: una pública y una privada |
+| **Clave pública** | La parte del par que se comparte — el candado |
+| **Clave privada** | La parte que nunca se comparte — la llave |
+| **RSA** | Algoritmo asimétrico basado en la dificultad de factorizar primos grandes |
+| **Diffie-Hellman** | Protocolo para acordar un secreto compartido sin transmitirlo |
+| **SSH** | Protocolo para conexiones cifradas a servidores remotos |
+| **Ed25519** | Algoritmo moderno de curvas elípticas — el recomendado hoy |
+| **Firma digital** | Mecanismo que garantiza autenticidad e integridad de un documento |
+| **Certificado TLS** | Documento que vincula una clave pública con un dominio |
+| **CA** | Autoridad Certificadora — emite y firma certificados |
+| **HTTPS** | HTTP + TLS — tráfico web cifrado y autenticado |
+| **GPG** | GNU Privacy Guard — herramienta open-source para cifrar y firmar |
+| **PGP** | Pretty Good Privacy — el estándar original (1991) |
+| **Passphrase** | Contraseña local que cifra una clave privada — nunca viaja por la red |
+| **Hash** | Función que convierte datos en una cadena de longitud fija, irreversible |
+| **Brute-force** | Ataque que prueba todas las combinaciones posibles |
+| **Dictionary attack** | Ataque con palabras comunes y contraseñas filtradas |
+| **John the Ripper** | Herramienta de cracking para hashes de SSH, GPG, ZIP y más |
+| **CTF** | Capture The Flag — competencia de seguridad informática |

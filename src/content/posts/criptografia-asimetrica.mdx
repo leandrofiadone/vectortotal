@@ -1,0 +1,263 @@
+---
+title: "Criptografía asimétrica: RSA, Diffie-Hellman y firmas digitales"
+date: 2026-03-26
+excerpt: "La criptografía asimétrica es la base de SSH, GPG, HTTPS y todo lo que mantiene tus datos seguros. RSA, Diffie-Hellman, firmas digitales — la teoría que sostiene todo."
+tags: ["crypto", "fundamentos"]
+series: crypto
+usefulFor:
+  - { area: "fundamentos de seguridad", pct: 100 }
+  - { area: "CTF / hacking", pct: 75 }
+  - { area: "pentesting", pct: 60 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
+import BarChart from '../../components/BarChart.astro';
+
+Todo lo que escribís en Internet viaja por máquinas que no controlás. Contraseñas, mensajes, números de tarjeta — cualquiera en la red podría interceptarlos. La razón por la que no sirve de nada es la criptografía.
+
+Este post cubre la teoría: cifrado asimétrico, RSA, Diffie-Hellman y firmas digitales. En el [siguiente post](/salas/crypto/ssh-gpg-confianza-digital) aplicamos todo en SSH, GPG y certificados TLS.
+
+---
+
+## Criptografía asimétrica — la base de todo
+
+- **Criptografía** — la ciencia de proteger comunicaciones. Diseña los sistemas que hacen que un mensaje sea ilegible sin la clave correcta.
+- **Criptoanálisis** — el lado atacante. Estudia cómo romper esos sistemas y recuperar la información original.
+
+El problema fundamental del cifrado: si Alice quiere mandarle un mensaje cifrado a Bob, ambos necesitan una clave secreta compartida. Pero **¿cómo se ponen de acuerdo en esa clave si el canal no es seguro?**
+
+La criptografía asimétrica resuelve esto con un par de claves vinculadas matemáticamente:
+
+- **Clave pública** — el candado. Podés compartirla con todo el mundo. Cualquiera puede usarla para cifrar un mensaje dirigido a vos.
+- **Clave privada** — la llave. Solo vos la tenés. Es la única que puede descifrar lo que se cifró con tu clave pública.
+
+No se puede derivar la clave privada a partir de la pública. Podés publicar la pública en GitHub, mandarla por email, pegarla en una web — no importa quién la vea.
+
+<Callout type="danger">
+  La clave privada **nunca** sale de tu máquina. Si alguien la tiene, puede hacerse pasar por vos.
+</Callout>
+
+---
+
+## Brute-force, diccionario y John the Ripper
+
+Ahora que sabés que las claves privadas se protegen con passphrases, la pregunta obvia es: ¿se pueden crackear?
+
+| Ataque | Cómo funciona | Ejemplo |
+|--------|--------------|---------|
+| **Brute-force** | Prueba *todas* las combinaciones posibles | `aaaa`, `aaab`, `aaac`... hasta acertar |
+| **Diccionario** | Prueba palabras comunes y contraseñas filtradas | `password`, `Password1`, `p@ssw0rd` |
+
+El diccionario es mucho más eficiente porque la mayoría de la gente usa contraseñas predecibles. El wordlist más famoso — `rockyou.txt` — viene de una filtración real: en 2009 la empresa RockYou almacenaba 32 millones de contraseñas **en texto plano**. Las hackearon, se filtraron, y hoy ese archivo es el diccionario estándar en CTFs y pentests.
+
+[John the Ripper](https://github.com/openwall/john) es la herramienta estándar. El patrón es siempre el mismo: extraer el hash con `ssh2john`, `gpg2john` o `zip2john`, y atacarlo con John o [Hashcat](https://hashcat.net/hashcat/).
+
+```bash
+# Extraer el hash de una clave SSH protegida con passphrase
+ssh2john id_rsa > hash.txt
+
+# Atacar con diccionario
+john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt
+
+# Ver el resultado
+john --show hash.txt
+```
+
+---
+
+## RSA — el algoritmo
+
+[RSA](https://en.wikipedia.org/wiki/RSA_(cryptosystem)) no es SSH. RSA es un algoritmo matemático de cifrado asimétrico, inventado en 1977 por Rivest, Shamir y Adleman. SSH es un protocolo de red que *puede* usar RSA por dentro. **RSA es el motor, SSH es el auto.**
+
+### La base matemática
+
+> Multiplicar dos números primos grandes es trivial. Factorizar el resultado es prácticamente imposible.
+
+```
+982451653031 × 169743212279 = 166764499494295486767649
+```
+
+Esa multiplicación la hace cualquier calculadora al instante. Pero si te doy solo el resultado — `166764499494295486767649` — y te pido que encuentres los dos factores primos, tendrías que probar divisores uno por uno.
+
+Y eso con números de 12 dígitos. En 1977, los creadores de RSA publicaron un [desafío con un número de 129 dígitos](https://en.wikipedia.org/wiki/RSA_numbers#RSA-129) y estimaron que factorizarlo llevaría 40 cuatrillones de años. Se crackeó en 1994 — 17 años después — con 600 voluntarios y meses de cómputo distribuido. El mensaje oculto era: *"THE MAGIC WORDS ARE SQUEAMISH OSSIFRAGE"*. Hoy RSA usa claves de **2048 o 4096 bits** (617+ dígitos). Con tecnología actual, factorizarlas llevaría más que la edad del universo.
+
+### Las variables de RSA
+
+| Variable | Qué es | Quién la conoce |
+|----------|--------|-----------------|
+| **p** | Primer número primo | Solo el dueño |
+| **q** | Segundo número primo | Solo el dueño |
+| **n** | El módulo: `n = p × q` | Público |
+| **e** | Exponente de cifrado | Público |
+| **d** | Exponente de descifrado | Solo el dueño |
+| **m** | Mensaje original (plaintext) | Emisor y receptor |
+| **c** | Mensaje cifrado (ciphertext) | Puede ser público |
+
+- La **clave pública** es el par `(n, e)`
+- La **clave privada** es `d` — derivada de `p` y `q`
+- Cifrar: `c = m^e mod n`
+- Descifrar: `m = c^d mod n`
+
+### El flujo: Alice cifra, Bob descifra
+
+<Step n={1} title="Bob genera su par de claves">
+  Elige dos primos enormes (`p` y `q`), calcula `n = p × q`, y deriva `e` y `d`. Publica `(n, e)` y guarda `d` en secreto.
+</Step>
+
+<Step n={2} title="Alice cifra el mensaje">
+  Toma la clave pública de Bob y cifra: `c = m^e mod n`. El resultado es ilegible sin `d`.
+</Step>
+
+<Step n={3} title="El mensaje viaja por Internet">
+  El ciphertext `c` viaja por la red. Si alguien lo intercepta, solo ve un número gigante sin sentido.
+</Step>
+
+<Step n={4} title="Bob descifra" last={true}>
+  Aplica su clave privada: `m = c^d mod n`. Recupera el mensaje original.
+</Step>
+
+<Mermaid title="Flujo RSA: cifrado y descifrado" chart={`
+flowchart TD
+  GEN["Bob genera par de claves"] --> PUB["Clave publica\n(n, e)"]
+  GEN --> PRIV["Clave privada\n(d)"]
+  PUB -->|"comparte"| ENC["Alice cifra\nc = m^e mod n"]
+  ENC -->|"envia ciphertext c"| DEC["Bob descifra\nm = c^d mod n"]
+  PRIV -.->|"solo Bob la tiene"| DEC
+  DEC --> MSG["Mensaje original recuperado"]
+`} />
+
+<Callout type="tip">
+  En CTFs vas a encontrar desafíos RSA con primos deliberadamente débiles. Herramientas como **RsaCtfTool** automatizan los ataques cuando los parámetros son vulnerables.
+</Callout>
+
+---
+
+## Diffie-Hellman — acordar un secreto sin transmitirlo
+
+RSA resuelve el cifrado. Pero hay otro problema: **¿cómo dos personas acuerdan una clave secreta compartida sin que nadie que esté escuchando pueda descubrirla?**
+
+Eso resuelve [Diffie-Hellman](https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange). No cifra mensajes — su único trabajo es generar un **secreto compartido** a través de un canal público.
+
+### La analogía de las pinturas
+
+Imaginá que vos y un amigo necesitan acordar un color secreto, pero solo pueden comunicarse gritando en una plaza llena de gente.
+
+Acuerdan un color base en voz alta: **amarillo**. Todos lo escuchan, no importa.
+
+Vos mezclás el amarillo con tu color secreto — rojo. Te queda **naranja**. Se lo mandás. Tu amigo mezcla el amarillo con su color secreto — azul. Le queda **verde**. Te lo manda. Toda la plaza vio pasar el naranja y el verde.
+
+Ahora el paso clave: vos tomás el verde y le agregás tu rojo. Tu amigo toma tu naranja y le agrega su azul. **Ambos llegan al mismo color final** — un marrón oscuro que ninguno transmitió. Nadie en la plaza puede reproducirlo: para separar una mezcla de pintura necesitarían los colores secretos originales.
+
+### El intercambio matemático
+
+<Step n={1} title="Acuerdo público">
+  Alice y Bob acuerdan un primo grande `p` y una base `g`. Cualquiera puede verlos — son el "amarillo".
+</Step>
+
+<Step n={2} title="Secretos privados">
+  Cada uno elige un número secreto. Alice elige `a`, Bob elige `b` — los "colores secretos".
+</Step>
+
+<Step n={3} title="Intercambio público">
+  Alice calcula `A = g^a mod p` y se lo manda a Bob. Bob calcula `B = g^b mod p` y se lo manda a Alice. Son el "naranja" y el "verde".
+</Step>
+
+<Step n={4} title="El secreto compartido" last={true}>
+  Alice calcula `s = B^a mod p`. Bob calcula `s = A^b mod p`. Ambos llegan al **mismo valor `s`** — el "marrón" que nadie más puede obtener sin `a` o `b`.
+</Step>
+
+<Mermaid title="Diffie-Hellman: intercambio de claves" chart={`
+flowchart TD
+  PUB["Acuerdan primo p y base g\n(publico, cualquiera puede verlo)"]
+  PUB --> SA["Alice elige secreto a"]
+  PUB --> SB["Bob elige secreto b"]
+  SA --> A["Calcula A = g^a mod p"]
+  SB --> B["Calcula B = g^b mod p"]
+  A -->|"envia A"| CB["Bob recibe A"]
+  B -->|"envia B"| CA["Alice recibe B"]
+  CA --> S1["Alice: s = B^a mod p"]
+  CB --> S2["Bob: s = A^b mod p"]
+  S1 --> SECRET["Mismo secreto s\nsin haberlo transmitido"]
+  S2 --> SECRET
+`} />
+
+Después usan `s` como clave para un **cifrado simétrico** (como AES) que protege la comunicación real. **SSH y TLS usan este mecanismo** al inicio de cada conexión.
+
+<Callout type="info">
+  Diffie-Hellman no autentica a las partes. Si alguien se interpone (ataque MITM), podría negociar claves separadas con cada uno. Por eso DH siempre va acompañado de autenticación — certificados, firmas digitales o claves precompartidas.
+</Callout>
+
+---
+
+## Firmas digitales
+
+Firmás papeles todo el tiempo: contratos, recibos, formularios. Pero una firma en papel se puede imitar. Las [firmas digitales](https://en.wikipedia.org/wiki/Digital_signature) no — son un mecanismo criptográfico que garantiza:
+
+- **Autenticidad** — quién firmó. Solo el dueño de la clave privada pudo generar esa firma.
+- **Integridad** — que no fue alterado. Si cambia un solo byte, la firma se invalida.
+
+Sin firmas digitales, cualquiera podría publicar una actualización de Windows con malware y tu sistema no tendría forma de distinguirla de una legítima.
+
+### El flujo completo
+
+La firma invierte el flujo del cifrado: **firmás con tu privada y cualquiera verifica con tu pública**.
+
+<Step n={1} title="Bob genera el hash del documento">
+  Genera un **hash** del contenido — una huella digital de longitud fija. Si cambia un solo carácter, el hash cambia por completo.
+</Step>
+
+<Step n={2} title="Bob cifra el hash con su clave privada">
+  El resultado es la **firma digital**. Solo Bob podría haberla generado.
+</Step>
+
+<Step n={3} title="Bob envía documento + firma">
+  El documento va sin cifrar. La firma no oculta el contenido — solo lo protege contra alteraciones.
+</Step>
+
+<Step n={4} title="Alice descifra la firma">
+  Usa la **clave pública** de Bob para extraer el hash original.
+</Step>
+
+<Step n={5} title="Alice verifica la integridad" last={true}>
+  Calcula el hash del documento recibido y lo compara con el extraído. **Coinciden**: auténtico e íntegro. **No coinciden**: alguien alteró algo.
+</Step>
+
+### Firma digital vs firma electrónica
+
+<Compare
+  headers={["Firma digital", "Firma electrónica"]}
+  icons={["🔐", "✍️"]}
+  colors={["#00e5ff", "#a29bfe"]}
+  rows={[
+    ["Qué es", "Hash cifrado con clave privada", "Una imagen de tu firma pegada en un PDF"],
+    ["Prueba integridad", "Sí — cualquier cambio la invalida", "No — podés alterar el documento sin tocar la imagen"],
+    ["Prueba autenticidad", "Sí — solo el dueño de la clave pudo generarla", "No — cualquiera puede copiar la imagen de otro PDF"],
+    ["Valor legal", "En muchos países equivale a firma manuscrita", "Depende de la legislación local"],
+  ]}
+/>
+
+<BarChart
+  title="Tamaño de clave por algoritmo"
+  unit=" bits"
+  bars={[
+    { label: "RSA (estandar)", value: 4096, color: "#ffd32a" },
+    { label: "RSA (minimo)", value: 2048, color: "#ffc107" },
+    { label: "ECDSA", value: 521, color: "#00e5ff" },
+    { label: "Ed25519", value: 256, color: "#a29bfe" },
+  ]}
+/>
+
+<Quiz question="¿Se puede derivar la clave privada a partir de la pública en RSA?" hint="Pensá en qué operación matemática necesitarías hacer y por qué es difícil.">
+
+No. La clave pública es `(n, e)` y la privada es `d`. Para obtener `d` necesitás conocer `p` y `q` — los factores primos de `n`. Factorizar `n` cuando es un número de 617+ dígitos (RSA 2048/4096) es computacionalmente inviable con tecnología actual. Esa dificultad de factorización es la base de toda la seguridad de RSA.
+
+</Quiz>
+
+---
+
+En el [próximo post](/salas/crypto/ssh-gpg-confianza-digital): SSH y sus claves, GPG para cifrar y firmar, certificados TLS y la cadena de confianza detrás de HTTPS.

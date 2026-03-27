@@ -18,4 +18,10 @@ export const SERIES: Record<string, SeriesMeta> = {
     icon: '🐧',
     color: '#ffd32a',
   },
+  'crypto': {
+    title: 'Criptografía',
+    description: 'Cifrado asimétrico, firmas digitales, SSH, GPG y los mecanismos que protegen la comunicación digital.',
+    icon: '🔐',
+    color: '#a29bfe',
+  },
 };

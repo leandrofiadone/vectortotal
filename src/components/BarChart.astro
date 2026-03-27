@@ -1,0 +1,105 @@
+---
+interface Bar {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+interface Props {
+  title?: string;
+  bars: Bar[];
+  unit?: string;
+  max?: number;
+}
+const { title, bars, unit = '', max: maxOverride } = Astro.props;
+const maxVal = maxOverride ?? Math.max(...bars.map(b => b.value));
+---
+
+<figure class="barchart">
+  {title && <figcaption class="barchart-title">{title}</figcaption>}
+  <div class="barchart-bars">
+    {bars.map(bar => {
+      const pct = maxVal > 0 ? (bar.value / maxVal) * 100 : 0;
+      const color = bar.color || 'var(--accent)';
+      return (
+        <div class="bar-row">
+          <span class="bar-label">{bar.label}</span>
+          <div class="bar-track">
+            <div class="bar-fill" style={`width: ${pct}%; background: ${color}`} />
+          </div>
+          <span class="bar-value">{bar.value}{unit}</span>
+        </div>
+      );
+    })}
+  </div>
+</figure>
+
+<style>
+  .barchart {
+    margin: 1.5rem 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+    background: var(--bg2);
+  }
+
+  .barchart-title {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .barchart-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 110px 1fr 60px;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .bar-label {
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    color: var(--text);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-track {
+    height: 22px;
+    background: var(--bg3);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    min-width: 2px;
+  }
+
+  .bar-value {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  @media (max-width: 640px) {
+    .bar-row {
+      grid-template-columns: 80px 1fr 50px;
+      gap: 0.5rem;
+    }
+    .bar-label { font-size: 0.75rem; }
+    .bar-value { font-size: 0.75rem; }
+  }
+</style>

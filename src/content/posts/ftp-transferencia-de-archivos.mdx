@@ -14,6 +14,9 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
 
 HTTP y FTP mueven datos por TCP. Hasta ahí el parecido. HTTP usa una conexión para todo. FTP abre dos: una para los comandos, otra para los datos. Esa separación resuelve un problema de eficiencia — y crea uno de exposición. La contraseña viaja por el canal de control, en texto plano, antes de que se transfiera un solo archivo.
 
@@ -49,6 +52,34 @@ Cuando ejecutás `ls`, el cliente manda `LIST` por el canal de control y el serv
 ```
 
 Los últimos dos números codifican el puerto: `134 × 256 + 10 = 34314`.
+
+<Compare
+  headers={["Modo Activo", "Modo Pasivo (PASV)"]}
+  icons={["📡", "🔌"]}
+  colors={["#ff6b6b", "#00e5ff"]}
+  rows={[
+    ["Quien inicia la conexion de datos", "El servidor", "El cliente"],
+    ["Puerto de datos", "20 (fijo)", "Dinamico (el servidor lo elige)"],
+    ["Firewalls", "Problematico — el cliente debe aceptar conexiones entrantes", "Compatible — el cliente inicia ambas conexiones"],
+    ["Uso actual", "Legacy", "Estandar hoy"],
+  ]}
+/>
+
+<Mermaid title="FTP en modo pasivo (PASV)" chart={`
+sequenceDiagram
+  participant C as Cliente
+  participant S as Servidor (puerto 21)
+  participant D as Servidor (puerto dinamico)
+  C->>S: Conexion de control (TCP 21)
+  S-->>C: 220 Bienvenido
+  C->>S: USER / PASS
+  S-->>C: 230 Login OK
+  C->>S: PASV
+  S-->>C: 227 Entering Passive Mode (puerto 34314)
+  C->>D: Conexion de datos (TCP 34314)
+  C->>S: LIST
+  D-->>C: Listado de archivos
+`} />
 
 ---
 
@@ -137,6 +168,14 @@ quit                   # salir
 ftp                    # canal de control
 ftp-data               # transferencia de datos
 ```
+
+---
+
+<Quiz question="Si el servidor responde '227 Entering Passive Mode (10,10,41,192,134,10)', ¿en que puerto se conecta el cliente para la transferencia de datos?" hint="Los ultimos dos numeros codifican el puerto: primer numero * 256 + segundo numero.">
+
+El puerto es **34314**. Se calcula con los ultimos dos numeros de la respuesta PASV: `134 * 256 + 10 = 34314`. El cliente abre una nueva conexion TCP a ese puerto para transferir los datos.
+
+</Quiz>
 
 ---
 

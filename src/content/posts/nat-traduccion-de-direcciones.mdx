@@ -15,6 +15,8 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
 
 IPv4 soporta ~4.300 millones de direcciones únicas. Suena a mucho, pero con smartphones, laptops, cámaras, routers, TVs y heladeras conectados, ese espacio se agotó. NAT fue la solución práctica que le dio décadas más de vida a IPv4.
 
@@ -81,6 +83,21 @@ Red interna (privada)           Router NAT                Internet
 El servidor en Internet solo ve `212.3.4.5` — nunca sabe que hay tres dispositivos distintos detrás.
 
 <img src="/images/nat/pat-traduccion.png" alt="SNAT/PAT: tres dispositivos con IPs privadas (192.168.1.10, .11, .12) salen hacia Internet como una única IP pública 203.0.113.5 en puertos distintos" style="border-radius: 4px; margin: 1.5rem 0;" />
+
+<Mermaid title="Traduccion NAT/PAT: IP privada a IP publica" chart={`
+flowchart LR
+  subgraph LAN["Red privada"]
+    A["Laptop\n.129:15401"]
+    B["PC\n.137:27912"]
+    C["Servidor\n.112:38192"]
+  end
+  A --> R{"Router NAT\n212.3.4.5"}
+  B --> R
+  C --> R
+  R -->|":19273"| I["Internet"]
+  R -->|":32759"| I
+  R -->|":41251"| I
+`} />
 
 ---
 
@@ -246,3 +263,9 @@ Invoke-RestMethod ifconfig.me
 # Ver conexiones activas con puertos
 netstat -ano
 ```
+
+<Quiz question="¿Por qué NAT no es un reemplazo real de un firewall, aunque bloquee conexiones entrantes?" hint="Pensá en qué pasa cuando un proceso interno abre un puerto.">
+
+NAT bloquea conexiones entrantes no solicitadas como **efecto secundario** de la traduccion, no como politica de seguridad. Si un proceso interno (o malware) abre una conexion saliente, NAT la permite sin restricciones. Ademas, con **UPnP habilitado**, cualquier aplicacion puede pedir al router que abra puertos automaticamente hacia el exterior. Un firewall real aplica reglas explicitas sobre que trafico se permite en ambas direcciones.
+
+</Quiz>

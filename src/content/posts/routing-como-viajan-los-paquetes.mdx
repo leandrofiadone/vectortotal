@@ -15,6 +15,8 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Vimos que ARP resuelve MACs dentro de una misma red. Pero ¿qué pasa cuando el destino está en **otra red**? Tu PC no puede mandar un ARP broadcast a Internet — eso no escala. Necesitás un router que sepa hacia dónde reenviar el paquete. Ese es el problema que resuelve el routing.
 
@@ -101,6 +103,14 @@ Cuando tu PC manda un paquete a `93.184.215.14` (example.com):
 <Callout type="tip">
   La IP de origen y destino **no cambian** a lo largo de toda la ruta (salvo NAT). Lo que cambia en cada salto es el par de MACs de origen/destino — por eso ARP y routing son complementarios, no competidores.
 </Callout>
+
+<Mermaid title="Viaje de un paquete hop a hop con decremento de TTL" chart={`
+flowchart LR
+  PC["PC origen\nTTL=64"] -->|hop 1| R1["Router 1\nTTL 64 a 63"]
+  R1 -->|hop 2| R2["Router 2\nTTL 63 a 62"]
+  R2 -->|hop 3| R3["Router 3\nTTL 62 a 61"]
+  R3 -->|hop 4| SRV["Servidor destino\nTTL=61"]
+`} />
 
 ---
 
@@ -264,3 +274,9 @@ route add 10.10.0.0 mask 255.255.0.0 192.168.66.1
 route delete 10.10.0.0
 tracert 93.184.215.14
 ```
+
+<Quiz question="¿Qué pasa cuando el TTL de un paquete llega a 0 en un router intermedio?" hint="Pensá en qué protocolo usa traceroute para descubrir la ruta.">
+
+El router **descarta el paquete** y envia un mensaje **ICMP Time Exceeded (Type 11)** de vuelta al origen. Esto evita que paquetes mal enrutados circulen indefinidamente por la red. Es exactamente el mecanismo que explota `traceroute`: manda paquetes con TTL incremental para que cada router en el camino se identifique al responder con Time Exceeded.
+
+</Quiz>

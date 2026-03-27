@@ -13,6 +13,50 @@ interface Props {
 }
 
 const { name, description, layer, facts } = Astro.props;
+
+const layerTips: Record<string, string> = {
+  'Aplicación (L7)': 'Capa 7 del modelo OSI — donde operan los protocolos que el usuario usa directamente',
+  'Transporte (L4)': 'Capa 4 del modelo OSI — TCP y UDP, control de la comunicación entre procesos',
+  'Red (L3)': 'Capa 3 del modelo OSI — direccionamiento IP y enrutamiento',
+  'Red (L3) / Transporte (L4)': 'Opera entre capa 3 (IP) y capa 4 (puertos) — reescribe ambas cabeceras',
+  'Enlace (L2)': 'Capa 2 del modelo OSI — comunicación dentro de una misma red local (MAC)',
+};
+
+const factTips: Record<string, string> = {
+  'RFC': 'Request for Comments — el documento que define el estándar de este protocolo',
+  'Transporte': 'Protocolo de capa inferior que usa (TCP = confiable, UDP = rápido)',
+  'Cifrado': 'Si los datos viajan cifrados o en texto plano visible',
+  'Control': 'Puerto del canal de comandos (ej: login, LIST, RETR)',
+  'Datos': 'Puerto del canal de transferencia de archivos',
+  'Puerto': 'Puerto TCP/UDP donde escucha el servicio por defecto',
+  'Puerto servidor': 'Puerto donde escucha el servidor para recibir peticiones',
+  'Puerto cliente': 'Puerto que usa el cliente para enviar peticiones',
+  'Puerto HTTP': 'Puerto por defecto para tráfico HTTP sin cifrar',
+  'Puerto HTTPS': 'Puerto por defecto para tráfico HTTP cifrado con TLS',
+  'Con cifrado': 'Puerto de la versión cifrada con TLS',
+  'Modelo': 'Cómo maneja los mensajes en el servidor',
+  'Encapsulación': 'Cómo se empaqueta el protocolo dentro de la trama de red',
+  'No usa': 'Protocolos que este protocolo NO necesita para funcionar',
+  'EtherType': 'Código en la trama Ethernet que identifica qué protocolo lleva dentro',
+  'Request': 'Cómo se envía la petición inicial en la red',
+  'Reply': 'Cómo se envía la respuesta de vuelta',
+  'Tipo': 'Modelo de comunicación que usa el protocolo',
+  'Proceso': 'Nombre del flujo de intercambio de mensajes',
+  'Protocolo IP': 'Número de protocolo en la cabecera IP (identifica qué hay dentro)',
+  'Echo Request': 'Mensaje ICMP que envía ping para verificar conectividad',
+  'Echo Reply': 'Respuesta al ping — confirma que el destino está activo',
+  'Time Exceeded': 'Mensaje ICMP cuando el TTL llega a 0 — usado por traceroute',
+  'Alternos': 'Puertos alternativos usados en desarrollo o configuraciones custom',
+  'Fallback': 'Protocolo alternativo cuando el principal no alcanza',
+  'Tipo más común': 'La variante más usada de este protocolo en la práctica',
+  'Tracking': 'Qué información usa para mantener el estado de las conexiones',
+  'IPs privadas': 'Rangos de IP reservados para redes internas (no ruteables en internet)',
+  'Stateful': 'Si mantiene una tabla de estado de las conexiones activas',
+  'NAT en IPv6': 'Si IPv6 necesita traducción de direcciones como IPv4',
+  'Escala': 'Cantidad de rutas/prefijos que maneja el protocolo',
+  'Métrica': 'Criterio que usa para elegir la mejor ruta',
+  'Uso': 'Dónde se usa este protocolo en la práctica',
+};
 ---
 
 <div class="proto-card">
@@ -21,13 +65,16 @@ const { name, description, layer, facts } = Astro.props;
       <span class="proto-label">protocolo</span>
       <span class="proto-name">{name}</span>
     </div>
-    <span class="proto-layer">{layer}</span>
+    <span class="proto-layer has-tip" data-tip={layerTips[layer] || ''}>{layer}</span>
   </div>
   <p class="proto-desc">{description}</p>
   <div class="proto-facts">
     {facts.map(f => (
       <div class:list={['proto-fact', f.highlight && 'proto-fact-hi']}>
-        <span class="fact-label">{f.label}</span>
+        <span
+          class:list={['fact-label', factTips[f.label] && 'has-tip']}
+          data-tip={factTips[f.label] || ''}
+        >{f.label}</span>
         <span class="fact-value">{f.value}</span>
       </div>
     ))}
@@ -138,5 +185,59 @@ const { name, description, layer, facts } = Astro.props;
 
   .proto-fact-hi .fact-value {
     color: var(--accent);
+  }
+
+  /* ── Tooltip CSS ── */
+  .has-tip {
+    position: relative;
+    cursor: help;
+    border-bottom: 1px dashed rgba(90, 122, 144, 0.6);
+    width: fit-content;
+  }
+
+  .has-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0a1018;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    line-height: 1.5;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--accent);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 8px rgba(0, 229, 255, 0.1);
+    white-space: normal;
+    width: max-content;
+    max-width: 280px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+
+  .has-tip::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--accent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+
+  .has-tip:hover::after,
+  .has-tip:hover::before {
+    opacity: 1;
   }
 </style>

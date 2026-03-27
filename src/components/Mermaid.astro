@@ -1,0 +1,269 @@
+---
+interface Props {
+  chart: string;
+  title?: string;
+}
+const { chart, title } = Astro.props;
+---
+
+<figure class="mermaid-wrap">
+  {title && <figcaption class="mermaid-title">{title}</figcaption>}
+  <div class="mermaid-chart">
+    <pre class="mermaid">{chart}</pre>
+  </div>
+</figure>
+
+<style>
+  .mermaid-wrap {
+    margin: 1.5rem 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: linear-gradient(180deg, #0d1520 0%, #0f1923 100%);
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .mermaid-title {
+    padding: 0.7rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    background: rgba(0, 229, 255, 0.03);
+    letter-spacing: 0.02em;
+  }
+
+  .mermaid-chart {
+    padding: 2rem 1.5rem;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+  }
+
+  .mermaid {
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: var(--mono);
+  }
+
+  .mermaid-chart :global(svg) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* ── Actor boxes ── */
+  .mermaid-chart :global(.actor) {
+    fill: #0c1a28 !important;
+    stroke: #00e5ff !important;
+    stroke-width: 2 !important;
+    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.25));
+  }
+  .mermaid-chart :global(.actor-man) {
+    stroke: #00e5ff !important;
+  }
+  .mermaid-chart :global(text.actor > tspan) {
+    fill: #ffffff !important;
+    font-weight: 700 !important;
+  }
+
+  /* ── Request arrows (solid ──>) ── */
+  .mermaid-chart :global(.messageLine0) {
+    stroke: #00e5ff !important;
+    stroke-width: 2 !important;
+  }
+  .mermaid-chart :global(.messageLine0 + .arrowMarkerPath) {
+    fill: #00e5ff !important;
+    stroke: #00e5ff !important;
+  }
+
+  /* ── Response arrows (dashed <──) ── */
+  .mermaid-chart :global(.messageLine1) {
+    stroke: #ffd32a !important;
+    stroke-width: 1.8 !important;
+  }
+
+  /* ── Arrow markers ── */
+  .mermaid-chart :global(#arrowhead path) {
+    fill: #00e5ff !important;
+  }
+  .mermaid-chart :global(#crosshead path) {
+    fill: #ffd32a !important;
+    stroke: #ffd32a !important;
+  }
+
+  /* ── Message text ── */
+  .mermaid-chart :global(.messageText) {
+    fill: #e0eaf4 !important;
+    font-size: 13px !important;
+  }
+
+  /* ── Actor lifeline ── */
+  .mermaid-chart :global(.actor-line) {
+    stroke: #1e3a50 !important;
+    stroke-width: 1.5 !important;
+    stroke-dasharray: 4, 4 !important;
+  }
+
+  /* ── Note boxes ── */
+  .mermaid-chart :global(.note) {
+    fill: #1a1530 !important;
+    stroke: #a29bfe !important;
+    stroke-width: 1.5 !important;
+    filter: drop-shadow(0 0 6px rgba(162, 155, 254, 0.2));
+    rx: 4;
+  }
+  .mermaid-chart :global(.noteText > tspan) {
+    fill: #d8d0f0 !important;
+  }
+
+  /* ── Activation bars ── */
+  .mermaid-chart :global(.activation0),
+  .mermaid-chart :global(.activation1),
+  .mermaid-chart :global(.activation2) {
+    fill: #162535 !important;
+    stroke: #00e5ff !important;
+  }
+
+  /* ── Flowchart nodes — color cycle ── */
+  .mermaid-chart :global(.node rect),
+  .mermaid-chart :global(.node polygon),
+  .mermaid-chart :global(.node circle) {
+    stroke-width: 2 !important;
+  }
+
+  .mermaid-chart :global(.node:nth-of-type(5n+1) rect),
+  .mermaid-chart :global(.node:nth-of-type(5n+1) polygon) {
+    fill: #0c2030 !important;
+    stroke: #00e5ff !important;
+    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.2));
+  }
+  .mermaid-chart :global(.node:nth-of-type(5n+2) rect),
+  .mermaid-chart :global(.node:nth-of-type(5n+2) polygon) {
+    fill: #1a1530 !important;
+    stroke: #a29bfe !important;
+    filter: drop-shadow(0 0 8px rgba(162, 155, 254, 0.2));
+  }
+  .mermaid-chart :global(.node:nth-of-type(5n+3) rect),
+  .mermaid-chart :global(.node:nth-of-type(5n+3) polygon) {
+    fill: #1f1a0c !important;
+    stroke: #ffd32a !important;
+    filter: drop-shadow(0 0 8px rgba(255, 211, 42, 0.15));
+  }
+  .mermaid-chart :global(.node:nth-of-type(5n+4) rect),
+  .mermaid-chart :global(.node:nth-of-type(5n+4) polygon) {
+    fill: #1a0c14 !important;
+    stroke: #ff6b81 !important;
+    filter: drop-shadow(0 0 8px rgba(255, 107, 129, 0.15));
+  }
+  .mermaid-chart :global(.node:nth-of-type(5n+5) rect),
+  .mermaid-chart :global(.node:nth-of-type(5n+5) polygon) {
+    fill: #0c1f18 !important;
+    stroke: #2ed573 !important;
+    filter: drop-shadow(0 0 8px rgba(46, 213, 115, 0.15));
+  }
+
+  /* ── Sequence actors — color cycle ── */
+  .mermaid-chart :global(g:nth-of-type(3n+1) > .actor) {
+    fill: #0c2030 !important;
+    stroke: #00e5ff !important;
+  }
+  .mermaid-chart :global(g:nth-of-type(3n+2) > .actor) {
+    fill: #1a1530 !important;
+    stroke: #a29bfe !important;
+  }
+  .mermaid-chart :global(g:nth-of-type(3n+3) > .actor) {
+    fill: #0c1f18 !important;
+    stroke: #2ed573 !important;
+  }
+
+  /* ── Flowchart edges ── */
+  .mermaid-chart :global(.flowchart-link) {
+    stroke-width: 2 !important;
+  }
+  .mermaid-chart :global(.edgeLabel) {
+    background-color: #0f1923 !important;
+    color: #ffd32a !important;
+  }
+  .mermaid-chart :global(.edgeLabel span) {
+    color: #ffd32a !important;
+  }
+</style>
+
+<script>
+  async function renderMermaid() {
+    const els = document.querySelectorAll('.mermaid');
+    if (els.length === 0) return;
+
+    const { default: mermaid } = await import('mermaid');
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      fontFamily: "'Share Tech Mono', monospace",
+      fontSize: 16,
+      sequence: {
+        actorFontSize: 15,
+        messageFontSize: 14,
+        noteFontSize: 13,
+        actorMargin: 100,
+        messageMargin: 45,
+        width: 220,
+        height: 55,
+        useMaxWidth: false,
+        mirrorActors: false,
+        bottomMarginAdj: 10,
+      },
+      flowchart: {
+        nodeSpacing: 50,
+        rankSpacing: 60,
+        useMaxWidth: false,
+        curve: 'basis',
+      },
+      themeVariables: {
+        darkMode: true,
+        background: '#0f1923',
+        primaryColor: '#142535',
+        primaryBorderColor: '#00e5ff',
+        primaryTextColor: '#e0eaf4',
+        secondaryColor: '#162030',
+        secondaryBorderColor: '#1e3040',
+        tertiaryColor: '#0d1117',
+        lineColor: '#7ab0cc',
+        textColor: '#d0dfe8',
+        mainBkg: '#142535',
+        nodeBorder: '#00e5ff',
+        nodeTextColor: '#e8f4ff',
+        /* sequence diagram */
+        actorBorder: '#00e5ff',
+        actorBkg: '#0c1a28',
+        actorTextColor: '#ffffff',
+        actorLineColor: '#2a4055',
+        signalColor: '#d0dfe8',
+        signalTextColor: '#d0dfe8',
+        noteBorderColor: '#a29bfe',
+        noteBkgColor: '#1a1530',
+        noteTextColor: '#d8d0f0',
+        activationBorderColor: '#00e5ff',
+        activationBkgColor: '#162535',
+        loopTextColor: '#d0dfe8',
+        labelBoxBkgColor: '#0f1923',
+        labelBoxBorderColor: '#1e3040',
+        labelTextColor: '#d0dfe8',
+        /* flowchart */
+        clusterBkg: '#0d1520',
+        clusterBorder: '#1e3040',
+        edgeLabelBackground: '#0f1923',
+      },
+    });
+
+    try {
+      await mermaid.run({ querySelector: '.mermaid' });
+    } catch (e) {
+      console.error('Mermaid render error:', e);
+    }
+  }
+
+  document.addEventListener('astro:page-load', renderMermaid);
+</script>

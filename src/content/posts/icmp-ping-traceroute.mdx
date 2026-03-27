@@ -15,6 +15,8 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Hasta ahora vimos cómo los dispositivos obtienen IP (DHCP) y cómo resuelven MACs (ARP). Pero ¿cómo sabe tu sistema si un host está vivo? ¿Cómo descubrís la ruta que toman tus paquetes hacia un servidor? Para eso existe ICMP.
 
@@ -145,6 +147,23 @@ El campo **TTL (Time-to-Live)** del header IP indica cuántos routers puede atra
 
 <img src="/images/icmp/traceroute-ttl.png" alt="Diagrama traceroute: TTL=1 genera Time Exceeded en Router 1, TTL=2 en Router 2, TTL=3 llega al destino con Echo Reply" style="border-radius: 4px; margin: 1.5rem 0;" />
 
+<Mermaid title="Traceroute: descubrimiento de ruta con TTL incremental" chart={`
+sequenceDiagram
+  participant PC as Tu PC
+  participant R1 as Router 1
+  participant R2 as Router 2
+  participant SRV as Destino
+  PC->>R1: TTL=1
+  R1-->>PC: Time Exceeded — revela IP de R1
+  PC->>R1: TTL=2
+  R1->>R2: TTL=1
+  R2-->>PC: Time Exceeded — revela IP de R2
+  PC->>R1: TTL=3
+  R1->>R2: TTL=2
+  R2->>SRV: TTL=1
+  SRV-->>PC: Echo Reply — destino alcanzado
+`} />
+
 ### Output real
 
 ```bash
@@ -251,3 +270,9 @@ icmp
 ping 192.168.66.1
 tracert example.com
 ```
+
+<Quiz question="¿Qué tipo de mensaje ICMP envia un router cuando recibe un paquete con TTL=1 y el destino no es él?" hint="Pensá en qué significa que el TTL llegue a 0.">
+
+El router **decrementa el TTL a 0** y, como no puede reenviarlo, descarta el paquete y responde con un **ICMP Time Exceeded (Type 11, Code 0)**. Esto es exactamente lo que explota `traceroute`: manda paquetes con TTL incremental (1, 2, 3...) para que cada router en el camino se identifique al devolver el Time Exceeded.
+
+</Quiz>

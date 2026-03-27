@@ -1,0 +1,109 @@
+---
+interface Props {
+  labels: string[];
+}
+const { labels } = Astro.props;
+---
+
+<div class="tabs-container" data-tab-count={labels.length}>
+  <div class="tab-bar" role="tablist">
+    {labels.map((label, i) => (
+      <button
+        class:list={['tab-btn', { active: i === 0 }]}
+        role="tab"
+        data-idx={i}
+        aria-selected={i === 0 ? 'true' : 'false'}
+      >
+        {label}
+      </button>
+    ))}
+  </div>
+  <div class="tab-panels">
+    <slot />
+  </div>
+</div>
+
+<script>
+  document.addEventListener('astro:page-load', () => {
+    document.querySelectorAll('.tabs-container').forEach(container => {
+      const buttons = container.querySelectorAll<HTMLButtonElement>('.tab-btn');
+      const panels = container.querySelectorAll<HTMLDivElement>('.tab-panel');
+
+      // Initialize: show only first panel
+      panels.forEach((p, i) => {
+        if (i === 0) p.classList.add('active');
+        else p.classList.remove('active');
+      });
+
+      buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          buttons.forEach(b => {
+            b.classList.remove('active');
+            b.setAttribute('aria-selected', 'false');
+          });
+          panels.forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          btn.setAttribute('aria-selected', 'true');
+          if (panels[idx]) panels[idx].classList.add('active');
+        });
+      });
+    });
+  });
+</script>
+
+<style>
+  .tabs-container {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    background: var(--bg2);
+  }
+
+  .tab-bar {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    overflow-x: auto;
+  }
+
+  .tab-btn {
+    padding: 0.7rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-panels :global(.tab-panel) {
+    display: none;
+    padding: 1rem 1.2rem;
+  }
+
+  .tab-panels :global(.tab-panel.active) { display: block; }
+
+  .tab-panels :global(.tab-panel p) { margin: 0.5rem 0; }
+  .tab-panels :global(.tab-panel p:first-child) { margin-top: 0; }
+  .tab-panels :global(.tab-panel pre) { margin: 0.5rem 0; border-radius: 6px; }
+  .tab-panels :global(.tab-panel ul) { margin: 0.5rem 0; padding-left: 1.2rem; }
+  .tab-panels :global(.tab-panel li) { margin: 0.3rem 0; }
+  .tab-panels :global(.tab-panel code) {
+    font-size: 0.88em;
+    background: var(--bg3);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+</style>

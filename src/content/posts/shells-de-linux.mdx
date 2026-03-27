@@ -13,6 +13,8 @@ draft: false
 
 import Callout from '../../components/Callout.astro';
 import ShellProfile from '../../components/ShellProfile.astro';
+import Compare from '../../components/Compare.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Al igual que Windows tiene la Símbolo del Sistema y PowerShell, Linux tiene distintos tipos de **shells** disponibles, cada una con sus propias características. La shell es el intérprete que procesa lo que escribís en la terminal y lo ejecuta.
 
@@ -154,15 +156,20 @@ plugins=(git zsh-autosuggestions zsh-syntax-highlighting z)
 
 ## 📊 Comparativa rápida
 
-| Característica | Bash | Fish | Zsh |
-|---|---|---|---|
-| **Scripting** | ✅ Completo | ⚠️ Limitado | ✅ Excelente |
-| **POSIX compatible** | ✅ | ❌ | ✅ |
-| **Syntax highlighting** | ❌ | ✅ Built-in | 🔌 Plugin |
-| **Autocorrección** | ❌ | ✅ | ✅ |
-| **Tab completion** | Básico | Avanzado | Extensible |
-| **Arranque** | ⚡ Rápido | Medio | Depende |
-| **Curva de entrada** | Baja | Muy baja | Media |
+<Compare
+  headers={["Bash", "Fish", "Zsh"]}
+  icons={["🔧", "🐟", "⚡"]}
+  colors={["#ffd32a", "#00e5ff", "#a29bfe"]}
+  rows={[
+    ["Scripting", "Completo", "Limitado", "Excelente"],
+    ["POSIX compatible", "Sí", "No", "Sí"],
+    ["Syntax highlighting", "No", "Built-in", "Via plugin"],
+    ["Autocorrección", "No", "Sí", "Sí"],
+    ["Tab completion", "Básico", "Avanzado", "Extensible"],
+    ["Arranque", "Rápido", "Medio", "Depende"],
+    ["Curva de entrada", "Baja", "Muy baja", "Media"],
+  ]}
+/>
 
 ---
 
@@ -175,3 +182,9 @@ plugins=(git zsh-autosuggestions zsh-syntax-highlighting z)
 <Callout type="danger">
   En servidores remotos o entornos que no controlás, **asumir que hay algo distinto a Bash puede romperte los scripts**. Siempre verificá con `echo $SHELL` antes de ejecutar.
 </Callout>
+
+<Quiz question="¿Qué shell usarías en un CTF y por qué?" hint="Pensá en compatibilidad con exploits, reverse shells y one-liners del ecosistema.">
+
+**Bash**, sin dudarlo. Todos los exploits, reverse shells y scripts de pentesting asumen Bash. Si usás Fish o Zsh en un CTF, vas a tener que traducir sintaxis constantemente o ejecutar `bash` explícitamente. Además, la mayoría de los servidores remotos solo tienen Bash disponible — conocerla a fondo es no negociable.
+
+</Quiz>

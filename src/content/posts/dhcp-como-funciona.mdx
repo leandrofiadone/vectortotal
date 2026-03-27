@@ -15,6 +15,8 @@ draft: false
 import Callout from '../../components/Callout.astro';
 import ProtoCard from '../../components/ProtoCard.astro';
 import Step from '../../components/Step.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Quiz from '../../components/Quiz.astro';
 
 Entrás al café, abrís la laptop, te conectás al WiFi y listo — navegás, accedés a TryHackMe, hacés lo tuyo. No escribiste ninguna dirección IP. No configuraste nada. ¿Cómo funciona eso?
 
@@ -86,6 +88,16 @@ Cuando tu dispositivo se conecta a una red, DHCP ejecuta cuatro pasos en secuenc
 </Step>
 
 <img src="/images/dhcp/dora.png" alt="Diagrama del proceso DORA: Discover (broadcast), Offer, Request (broadcast), ACK" style="border-radius: 4px; margin: 1.5rem 0;" />
+
+<Mermaid title="Proceso DORA" chart={`
+sequenceDiagram
+  participant C as Cliente (sin IP)
+  participant S as Servidor DHCP
+  C->>S: DISCOVER (broadcast)
+  S-->>C: OFFER (IP + mascara + GW + DNS)
+  C->>S: REQUEST (acepta la oferta, broadcast)
+  S-->>C: ACK (IP confirmada, lease asignado)
+`} />
 
 <Callout type="tip">
   Podés ver el lease time activo en Linux con `ip a` o `dhclient -v`. En Windows con `ipconfig /all` aparece como "Lease Obtained" y "Lease Expires".
@@ -179,3 +191,9 @@ ipconfig /all
 ipconfig /release
 ipconfig /renew
 ```
+
+<Quiz question="¿Qué pasa si hay dos servidores DHCP en la misma red?" hint="Pensá en quién responde primero al Discover.">
+
+Ambos servidores responden con un **Offer** al cliente. El cliente acepta la primera oferta que le llega y manda el **Request** como broadcast, avisando a todos qué oferta eligió. El problema real aparece cuando un atacante levanta un **Rogue DHCP Server** y responde antes que el legítimo: puede asignarle a la victima un **gateway falso** y hacer un ataque Man-in-the-Middle sin que nadie lo note. La contramedida es **DHCP Snooping** en el switch.
+
+</Quiz>
