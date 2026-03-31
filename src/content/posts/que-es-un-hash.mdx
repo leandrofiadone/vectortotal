@@ -1,0 +1,226 @@
+---
+title: "Qué es un hash y por qué importa en seguridad"
+date: 2026-03-29
+excerpt: "Longitud fija, irreversibilidad, colisiones, P vs NP, velocidad de cracking y el futuro cuántico — todo lo que necesitás saber sobre hashing antes de tocar una herramienta."
+tags: ["crypto", "fundamentos"]
+series: crypto
+usefulFor:
+  - { area: "fundamentos de seguridad", pct: 100 }
+  - { area: "CTF / hacking", pct: 75 }
+  - { area: "pentesting", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Compare from '../../components/Compare.astro';
+import Terminal from '../../components/Terminal.astro';
+import Quiz from '../../components/Quiz.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Accordion from '../../components/Accordion.astro';
+import Step from '../../components/Step.astro';
+
+Si hasheás El Quijote completo — los ~2 millones de caracteres, ~16 millones de bits — ¿el resultado sigue teniendo 32 caracteres? Sí. Y si hasheás `polo` — 4 letras, 32 bits — ¿cuántos caracteres tiene el resultado? 32. Los mismos 32. No importa cuánto le metás, siempre sale lo mismo.
+
+Eso es un hash: una función que toma cualquier input y produce una cadena de **longitud fija**. Y la distinción central que tiene que quedarte grabada: **un hash no es cifrado**. El cifrado es reversible con una clave. El hash destruye información irreversiblemente — es una huella, no una copia.
+
+---
+
+## Longitud fija — siempre
+
+MD5 produce 128 bits. Esos 128 bits se representan como 32 caracteres hexadecimales. La conexión matemática que tenés que entender:
+
+> **128 bits ÷ 4 bits por dígito hexadecimal = 32 caracteres.**
+
+Cada dígito hex (0-9, a-f) codifica exactamente 4 bits. Por eso 128 bits siempre son 32 caracteres hex. No importa si el input es `polo` (4 caracteres) o El Quijote entero (~2 millones de caracteres):
+
+<Terminal title="misma longitud de output — siempre" lines={[
+  { type: "prompt", text: "echo -n 'polo' | md5sum" },
+  { type: "output", text: "b53759f3ce692de7aff1b5779d3964da  -" },
+  { type: "highlight", text: "4 caracteres de input → 32 caracteres de output" },
+  { type: "prompt", text: "# El Quijote tiene ~2 millones de caracteres" },
+  { type: "prompt", text: "md5sum quijote.txt" },
+  { type: "output", text: "a7b2e8d1c3f4509e6b8d2a1f7c3e5d09  quijote.txt" },
+  { type: "highlight", text: "~2.000.000 caracteres de input → 32 caracteres de output" },
+]} />
+
+La analogía de la licuadora: metés lo que quieras — una manzana o un pollo entero — y siempre salís con exactamente un vaso de líquido. El contenido del vaso cambia según lo que metiste, pero la cantidad es siempre la misma.
+
+<Accordion title="Cómo funciona internamente: bloques de 512 bits">
+
+MD5 divide el input en **bloques de 512 bits** y los procesa uno por uno. En cada bloque aplica operaciones **XOR** y **rotaciones de bits** — operaciones que se explican en detalle en el [post de criptografía asimétrica](/salas/crypto/criptografia-asimetrica). El estado interno siempre colapsa a 128 bits al final, sin importar cuántos bloques procesó.
+
+Los 32 caracteres que ves no "resumen" el contenido. Son la representación hexadecimal del **estado final** de esa cadena de operaciones matemáticas que **destruyen información deliberadamente** en cada paso. Cada bloque procesado mezcla, rota y descarta bits del estado anterior. Por eso no podés revertirlo: la información que eliminaste en cada bloque ya no existe.
+
+</Accordion>
+
+La tabla completa de longitudes:
+
+| Algoritmo | Bits de output | Bytes | Caracteres hex |
+|-----------|---------------|-------|----------------|
+| **MD5** | 128 | 16 | 32 |
+| **SHA-1** | 160 | 20 | 40 |
+| **SHA-256** | 256 | 32 | 64 |
+| **SHA-512** | 512 | 64 | 128 |
+
+Siempre la misma fórmula: **bits ÷ 4 = caracteres hex**.
+
+<Callout type="info">
+  MD5 tiene un límite teórico de input: **2⁶⁴ bits** (~2 exabytes). Es tan grande que ningún archivo real se acerca. En la práctica, acepta cualquier cosa.
+</Callout>
+
+---
+
+## El hash es automático en los sistemas
+
+Cuando creás una cuenta en cualquier sitio, el sistema hashea tu contraseña **antes de guardarla** — vos nunca ves el hash, el sistema nunca guarda el texto plano. Cuando iniciás sesión, hashea lo que escribiste y compara. Si coincide, entrás. Si no, te rechaza. En ningún momento necesita saber tu contraseña real.
+
+<Mermaid title="Registro e inicio de sesión — el hash es invisible para vos" chart={`
+flowchart LR
+  subgraph Registro
+    R1["Creás cuenta\ncontraseña: m1Cl4v3"] --> R2["Sistema calcula\nhash m1Cl4v3"]
+    R2 --> R3["Guarda hash\nen la DB"]
+  end
+  subgraph Login
+    L1["Ingresás\nm1Cl4v3"] --> L2["Sistema calcula\nhash m1Cl4v3"]
+    L2 --> L3{"¿Coincide con\nel hash guardado?"}
+    L3 -->|"Sí"| OK["Acceso"]
+    L3 -->|"No"| DENY["Rechazado"]
+  end
+`} />
+
+El hash no es magia del sistema operativo — es una función matemática que cualquier programa puede llamar:
+
+<Terminal title="hashear es una línea de código" lines={[
+  { type: "prompt", text: "echo -n 'mi_clave' | sha256sum" },
+  { type: "output", text: "2c4d8e7f1a3b5c9d0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c  -" },
+  { type: "prompt", text: "python3 -c \"import hashlib; print(hashlib.sha256(b'mi_clave').hexdigest())\"" },
+  { type: "output", text: "2c4d8e7f1a3b5c9d0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c" },
+  { type: "highlight", text: "Mismo input, mismo hash — no importa el lenguaje ni el sistema operativo" },
+]} />
+
+En Linux, cuando ejecutás `passwd` para cambiar tu contraseña, el sistema calcula el hash y lo guarda en `/etc/shadow` automáticamente. Vos nunca tocás el hash directamente.
+
+Las filtraciones donde aparecen contraseñas en texto claro son exactamente eso: **alguien no implementó el hasheo**. No es que "el hash se rompió" — nunca lo aplicaron.
+
+<Callout type="danger">
+  En 2009, RockYou guardaba **32 millones de contraseñas en texto plano**. Sin hash, sin cifrado, sin nada. Las robaron todas. Ese dump se convirtió en `rockyou.txt` — el diccionario estándar de todo pentester.
+</Callout>
+
+---
+
+## Por qué es seguro: P vs NP
+
+La analogía del rompecabezas: **armar** un rompecabezas de 5.000 piezas desde cero es difícil — lleva horas, no hay atajo obvio. Pero **verificar** si una solución propuesta es correcta es trivial — mirás la imagen y en un segundo sabés si está bien.
+
+En computación esa diferencia tiene nombre:
+
+<Compare
+  headers={["P — verificar", "NP — encontrar"]}
+  icons={["⚡", "🧩"]}
+  colors={["#2ed573", "#ff4757"]}
+  rows={[
+    ["Definición", "Problemas que se resuelven rápido", "Problemas donde la solución se verifica rápido, pero encontrarla es costoso"],
+    ["Rompecabezas", "Ver si está armado", "Armarlo desde cero"],
+    ["Hash", "Calcular hash(polo) → microsegundos", "Encontrar qué input produce un hash dado → inviable"],
+    ["Costo", "Bajo — tu CPU lo hace al toque", "Astronómico — años de cómputo"],
+  ]}
+/>
+
+Calcular `hash("polo")` es **P**: tu CPU lo hace en microsegundos. Dado `b53759f3ce692de7aff1b5779d3964da`, encontrar que el input era `polo` es **NP**: computacionalmente inviable por fuerza bruta pura. Con SHA-256 tendrías que buscar entre 2²⁵⁶ posibilidades — un número con 77 dígitos.
+
+### La trampa
+
+El problema NP asume que el input puede ser **cualquier cosa**. Pero las contraseñas reales no son cualquier cosa. La gente usa `password123`, el nombre de su perro, combinaciones predecibles. Eso achica el **espacio de búsqueda** dramáticamente.
+
+Si el universo de inputs posibles es de 2²⁵⁶, la fuerza bruta es imposible. Pero si el universo real es "las 14 millones de contraseñas de `rockyou.txt`", probar todas toma **minutos**. Ahí es donde entra el cracking: no ataca la matemática del hash — ataca la previsibilidad del humano.
+
+<Quiz question="Si un hash es computacionalmente irreversible (NP), ¿cómo es posible que herramientas como John the Ripper crackeen contraseñas en segundos?" hint="Pensá en la diferencia entre revertir un hash y adivinar el input.">
+
+John no revierte nada. No resuelve el problema NP. Lo que hace es explotar el hecho de que las **contraseñas reales** vienen de un espacio diminuto — diccionarios, patrones comunes, combinaciones predecibles. Prueba cada candidata, calcula su hash, y compara. Si `hash("biscuit")` coincide con el hash objetivo, encontró la contraseña. La "cerradura" de SHA-256 sigue intacta — pero si la combinación es `biscuit`, solo hay que probarla.
+
+</Quiz>
+
+---
+
+## Colisiones
+
+Si infinitos inputs se mapean a outputs finitos — 2¹²⁸ posibilidades en MD5 — matemáticamente es **inevitable** que dos inputs distintos produzcan el mismo hash. Eso es una **colisión**.
+
+El problema real no es que existan — eso es inevitable con un espacio finito de outputs. El problema es que se encontraron **atajos matemáticos** para construirlas a propósito:
+
+<Step n={1} title="MD5 — roto (2004)" label="colisión">
+  Investigadores chinos (Wang et al.) publicaron un método para generar colisiones MD5. Hoy cualquiera puede crear dos archivos distintos con el mismo MD5 en **segundos** con hardware común.
+</Step>
+
+<Step n={2} title="MD5 → certificado SSL falso (2008)" label="explotado">
+  Usaron colisiones MD5 para **falsificar un certificado SSL real**, haciéndose pasar por una autoridad certificadora. Un atacante podía interceptar conexiones HTTPS sin que el browser mostrara advertencia alguna.
+</Step>
+
+<Step n={3} title="SHA-1 — deprecado (2017)" label="caído">
+  Google y el CWI de Amsterdam produjeron dos PDFs visualmente distintos con el mismo SHA-1 — el ataque [SHAttered](https://shattered.io/). Les costó **6.500 años de CPU** corriendo en paralelo. Caro, pero factible para un estado o una empresa grande. GitHub y Chrome deprecaron SHA-1 ese mismo año.
+</Step>
+
+<Step n={4} title="SHA-256 — seguro hoy" label="vigente" last={true}>
+  **Cero colisiones conocidas**. No es que "no colisione" matemáticamente — es que nadie encontró el atajo y el espacio de 2²⁵⁶ posibilidades hace la búsqueda aleatoria completamente inviable.
+</Step>
+
+Para completar el cuadro: **MD4** (predecesor de MD5) es trivial de colisionar hoy — ya nadie lo usa. Y en la otra dirección, **SHA-3** es el plan B del futuro:
+
+<Callout type="tip">
+  SHA-3 no es "SHA-2 mejorado" — es una **arquitectura completamente diferente** (Keccak en lugar de Merkle-Damgård). Si alguien encuentra un atajo matemático contra SHA-256, SHA-3 no se ve afectado porque funciona distinto internamente.
+</Callout>
+
+---
+
+## Velocidad de cómputo y dificultad de cracking
+
+MD5 es rapidísimo de calcular — y por lo tanto, rapidísimo de **probar**. Eso es un problema para las contraseñas: si un atacante puede probar miles de millones de hashes MD5 por segundo, una contraseña de diccionario cae al instante.
+
+**bcrypt** resuelve esto con un parámetro llamado **work factor** que deliberadamente hace el hash lento. Si John the Ripper tarda 0.0001ms en probar un MD5, tarda ~100ms en probar un bcrypt. Con millones de intentos, esa diferencia es brutal.
+
+<Compare
+  headers={["Algoritmo", "Velocidad de cómputo", "Dificultad de cracking"]}
+  colors={["#a29bfe", "#a29bfe", "#a29bfe"]}
+  rows={[
+    ["MD5", "Muy rápido", "John prueba miles de millones/segundo"],
+    ["SHA-1", "Rápido", "Similar a MD5"],
+    ["SHA-256", "Moderado", "Viable si la contraseña es débil"],
+    ["bcrypt", "Lento por diseño", "Pocos miles/segundo"],
+  ]}
+/>
+
+SHA-256 cae en el medio: más lento que MD5, pero no fue diseñado para ser lento a propósito como bcrypt. Es un hash de propósito general — funciona para integridad de archivos, certificados y firmas digitales. Para contraseñas, la elección correcta es bcrypt, Argon2 o scrypt.
+
+<Callout type="warning">
+  El punto que une todo: **el algoritmo no es la única defensa**. `xK#m9$pL2@nQ` es difícil de crackear incluso en MD5 porque no está en ningún diccionario ni en ningún patrón predecible. `123456` cae igual en MD5 o SHA-256. **Buen algoritmo + buena contraseña** — siempre los dos.
+</Callout>
+
+---
+
+## Futuro cuántico
+
+Las computadoras cuánticas van a cambiar el panorama criptográfico — pero no como piensa la mayoría. Dos algoritmos cuánticos importan:
+
+<Compare
+  headers={["Algoritmo de Grover", "Algoritmo de Shor"]}
+  icons={["🔏", "🔐"]}
+  colors={["#ffa502", "#ff4757"]}
+  rows={[
+    ["Ataca", "Funciones de hash", "Criptografía asimétrica (RSA, ECC)"],
+    ["Efecto", "Reduce la seguridad a la mitad", "La destruye completamente"],
+    ["Ejemplo", "SHA-256 → 128 bits efectivos", "RSA → factorizable en tiempo útil"],
+    ["Impacto real", "SHA-512 sigue siendo seguro (256 bits efectivos)", "Toda clave pública/privada queda expuesta"],
+  ]}
+/>
+
+El **algoritmo de Grover** reduce a la mitad la seguridad efectiva de cualquier hash. SHA-256 quedaría en 128 bits efectivos — todavía seguro. SHA-512 en 256 bits — holgadamente seguro. Los hashes sobreviven a la era cuántica.
+
+El **algoritmo de Shor** es el problema real: directamente mata RSA y toda la criptografía asimétrica — las [claves públicas y privadas](/salas/crypto/criptografia-asimetrica) que ya vimos en el blog. Pero requiere millones de **qubits estables**. Las computadoras cuánticas actuales tienen pocos qubits con mucho ruido — estamos lejos de esa capacidad.
+
+<Callout type="info">
+  El NIST ya estandarizó en 2024 los primeros **algoritmos post-cuánticos** (CRYSTALS-Kyber para intercambio de claves, CRYSTALS-Dilithium para firmas). La criptografía no se rompe de golpe — se va debilitando mientras el hardware avanza, y la industria se adapta antes de que pase.
+</Callout>
+
+---
+
+Un hash no cifra, no protege, no esconde. Tritura. Y esa destrucción controlada de información es la base de la verificación de integridad, la autenticación de contraseñas y las firmas digitales. Lo que falta es pasar de la teoría a la práctica — [John the Ripper](/salas/crypto/john-the-ripper) es el primer paso.

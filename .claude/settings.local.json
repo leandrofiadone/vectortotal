@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:leanfiadone.vercel.app)"
+      "WebFetch(domain:leanfiadone.vercel.app)",
+      "Bash(grep -E \"\\\\.astro$\")",
+      "Bash(wc:*)"
     ]
   }
 }

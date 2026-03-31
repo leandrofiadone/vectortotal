@@ -1,0 +1,333 @@
+---
+title: "John the Ripper: cracking de hashes en la práctica"
+date: 2026-03-30
+excerpt: "Dictionary attacks con rockyou.txt, identificación de hashes, modos single crack y custom rules, y los cinco objetivos reales: /etc/shadow, NTLM, ZIP, RAR y claves SSH."
+tags: ["crypto", "fundamentos"]
+series: crypto
+usefulFor:
+  - { area: "CTF / hacking", pct: 100 }
+  - { area: "pentesting", pct: 95 }
+  - { area: "fundamentos de seguridad", pct: 60 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Terminal from '../../components/Terminal.astro';
+import Quiz from '../../components/Quiz.astro';
+import Accordion from '../../components/Accordion.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import HashChallenge from '../../components/HashChallenge.astro';
+
+John no hace magia. No revierte ningún hash. La cerradura de SHA-256 sigue siendo imposible de forzar — pero si la combinación es `biscuit`, John simplemente la prueba. Eso es todo.
+
+En el [post anterior](/salas/crypto/que-es-un-hash) vimos por qué un hash es computacionalmente irreversible y por qué las contraseñas reales achican el espacio de búsqueda. Ahora vamos a explotar eso.
+
+---
+
+## La lógica del dictionary attack
+
+```python
+# Pseudocódigo — así funciona John internamente
+for palabra in rockyou_txt:
+    if hash(palabra) == hash_objetivo:
+        print(f"Contraseña encontrada: {palabra}")
+        break
+```
+
+John nunca toca la matemática del hash — la usa como **caja negra**. Calcula el hash de cada candidata y compara con el objetivo. Es fuerza bruta inteligente: en lugar de probar todas las combinaciones posibles del universo, prueba las contraseñas que **realmente usa la gente**.
+
+<Mermaid title="Flujo de un dictionary attack" chart={`
+flowchart LR
+  WL["rockyou.txt\n14M palabras"] --> NEXT["Tomar siguiente\npalabra"]
+  NEXT --> HASH["Calcular\nhash de palabra"]
+  HASH --> CMP{"¿Coincide con\nhash objetivo?"}
+  CMP -->|"No"| NEXT
+  CMP -->|"Sí"| FOUND["Contraseña\nencontrada"]
+`} />
+
+---
+
+## RockYou — el diccionario estándar
+
+En 2009 hackearon [rockyou.com](https://en.wikipedia.org/wiki/RockYou), un sitio de widgets para redes sociales con ~32 millones de usuarios. El problema: guardaban las contraseñas **en texto plano**. Sin hash, sin cifrado, sin nada. Los atacantes se llevaron todo.
+
+Ese dump filtrado se convirtió en **rockyou.txt**: 14 millones de contraseñas reales de personas reales. Es el estándar de pentesting porque refleja contraseñas del mundo real — no combinaciones teóricas. Está en `/usr/share/wordlists/rockyou.txt` en Kali y AttackBox.
+
+<Terminal title="rockyou.txt — las contraseñas del mundo real" lines={[
+  { type: "prompt", text: "ls -lh /usr/share/wordlists/rockyou.txt" },
+  { type: "output", text: "-rw-r--r-- 1 root root 134M  rockyou.txt" },
+  { type: "prompt", text: "wc -l /usr/share/wordlists/rockyou.txt" },
+  { type: "output", text: "14344391 /usr/share/wordlists/rockyou.txt" },
+  { type: "prompt", text: "head -5 /usr/share/wordlists/rockyou.txt" },
+  { type: "output", text: "123456" },
+  { type: "output", text: "12345" },
+  { type: "output", text: "123456789" },
+  { type: "output", text: "password" },
+  { type: "output", text: "iloveyou" },
+]} />
+
+John puede probar toda la lista contra un hash MD5 en **minutos** con una CPU básica.
+
+---
+
+## Identificar el tipo de hash
+
+Cada algoritmo tiene características reconocibles — la más obvia es la **longitud**:
+
+| Longitud (hex) | Algoritmo probable |
+|----------------|-------------------|
+| **32** chars | MD5 |
+| **40** chars | SHA-1 |
+| **64** chars | SHA-256, Keccak-256, HAVAL-256, Skein-256, Stribog-256 |
+| **128** chars | SHA-512 o Whirlpool |
+
+MD5 y SHA-1 son casi únicos en su longitud — el modo automático de John los clava. El problema es **SHA-256**: comparte 64 caracteres hex con Keccak-256, HAVAL-256, Skein-256 y Stribog-256. John en modo automático puede apostar mal, crackear contra el formato equivocado, y no encontrar nada aunque la contraseña esté en `rockyou.txt`.
+
+Whirlpool es un caso especial: `hash-identifier` no lo detecta, pero John sí lo reconoce automáticamente.
+
+### Herramientas de identificación
+
+<Terminal title="identificar un hash" lines={[
+  { type: "prompt", text: "# hash-identifier — la herramienta clásica" },
+  { type: "prompt", text: "python3 hash-id.py" },
+  { type: "output", text: "HASH: 482c811da5d5b4bc6d497ffa98491e38" },
+  { type: "output", text: "Possible Hashs:" },
+  { type: "highlight", text: "[+] MD5" },
+  { type: "output", text: "[+] Domain Cached Credentials" },
+  { type: "prompt", text: "# hashid — alternativa, a veces detecta lo que la otra no" },
+  { type: "prompt", text: "hashid 482c811da5d5b4bc6d497ffa98491e38" },
+  { type: "prompt", text: "# Verificar el nombre exacto del formato en John" },
+  { type: "prompt", text: "john --list=formats | grep -iF 'sha256'" },
+  { type: "output", text: "Raw-SHA256, ..., dynamic_60 (sha256($p))" },
+]} />
+
+<Callout type="warning" title="El prefijo raw-">
+  John distingue entre `raw-md5` (hash MD5 suelto) y `md5crypt` (MD5 dentro del sistema de contraseñas de Linux, con salt). Sin el prefijo `raw-`, John puede buscar en el formato equivocado y fallar silenciosamente. Cuando tenés un hash suelto sin contexto de sistema operativo, usá siempre `raw-`.
+</Callout>
+
+<Callout type="info" title="Jumbo John vs estándar">
+  Las herramientas de conversión (`zip2john`, `rar2john`, `ssh2john`) **solo existen en Jumbo John**. El `john` que instalás con `apt install john` en Ubuntu es la versión estándar — le faltan. En Kali viene Jumbo por defecto. Verificá cuál tenés ejecutando `john` a secas: debe decir "John the Ripper 1.9.0-jumbo-1" o similar.
+</Callout>
+
+---
+
+## Los tres modos de ataque
+
+### 1. Wordlist mode — el primer intento siempre
+
+Prueba cada línea del diccionario contra el hash objetivo. Es el más común y el más efectivo contra contraseñas débiles:
+
+<Terminal title="wordlist mode — modo automático y específico" lines={[
+  { type: "prompt", text: "# Modo automático (funciona bien con MD5 y SHA-1)" },
+  { type: "prompt", text: "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt" },
+  { type: "prompt", text: "# Modo específico (necesario con SHA-256 y formatos ambiguos)" },
+  { type: "prompt", text: "john --format=raw-md5 --wordlist=/usr/share/wordlists/rockyou.txt hash.txt" },
+  { type: "prompt", text: "john --format=Raw-SHA256 --wordlist=/usr/share/wordlists/rockyou.txt hash.txt" },
+  { type: "prompt", text: "john --format=whirlpool --wordlist=/usr/share/wordlists/rockyou.txt hash.txt" },
+]} />
+
+### 2. Single crack mode — explota el nombre de usuario
+
+John genera **mutaciones automáticas del username**: si el usuario es `joker`, prueba `Joker1`, `jOkEr`, `Joker!`, `J0ker`, `JOKER`, `joker123` y cientos de variantes más. Esto se llama **word mangling**.
+
+También usa el campo **GECOS** de `/etc/passwd` si está disponible — el quinto campo separado por `:` que puede contener nombre completo, teléfono, oficina. Dato histórico: GECOS viene de *General Electric Comprehensive Operating System*, un mainframe de los años 60. El campo quedó en Unix por legado.
+
+<Callout type="warning">
+  Single crack mode requiere que el archivo tenga formato `usuario:hash`. Sin el username, John no sabe desde qué palabra generar las mutaciones.
+</Callout>
+
+<Terminal title="single crack mode" lines={[
+  { type: "prompt", text: "# El archivo debe tener formato usuario:hash" },
+  { type: "prompt", text: "cat hash.txt" },
+  { type: "output", text: "joker:7bf6d9bb82bed1302f331fc6b816aada" },
+  { type: "prompt", text: "john --single --format=raw-md5 hash.txt" },
+  { type: "output", text: "Loaded 1 password hash (Raw-MD5 [MD5 256/256 AVX2 8x3])" },
+  { type: "success", text: "Joker1           (joker)" },
+]} />
+
+### 3. Custom rules — explotan la predictibilidad humana
+
+Las organizaciones piden mayúscula + número + símbolo, y la gente siempre lo resuelve igual: **capital al inicio, número y símbolo al final**. `polopassword` se convierte en `Polopassword1!`. Las rules de John automatizan esas mutaciones.
+
+Las reglas se definen en `john.conf`:
+- `/opt/john/john.conf` en AttackBox
+- `/etc/john/john.conf` si instalaste con `apt`
+
+Jumbo John ya viene con reglas predefinidas cerca de la **línea 678** del archivo — buena referencia si la sintaxis no funciona.
+
+**Sintaxis de modificadores:**
+
+| Modificador | Efecto |
+|------------|--------|
+| `c` | Capitaliza la primera letra |
+| `Az` | Agrega al **final** de la palabra |
+| `A0` | Agrega al **inicio** de la palabra |
+| `[0-9]` | Cualquier número del 0 al 9 |
+| `[A-Z]` | Solo mayúsculas |
+| `[a-z]` | Solo minúsculas |
+| `[A-z]` | Mayúsculas y minúsculas |
+| `[!£$%@]` | Exactamente esos símbolos |
+
+<Accordion title="Ejemplo completo: generar Polopassword1! desde polopassword">
+
+```ini
+# En john.conf — agregar esta sección:
+[List.Rules:PoloPassword]
+cAz"[0-9][!£$%@]"
+```
+
+Leelo en voz alta: **capitalizá** (`c`) + **agregá al final** (`Az`) + **un número** (`[0-9]`) + **un símbolo** (`[!£$%@]`).
+
+John toma cada palabra del wordlist y aplica la regla. `polopassword` se convierte en `Polopassword0!`, `Polopassword0£`, `Polopassword0$`, ..., `Polopassword9@` — todas las combinaciones.
+
+```bash
+# Llamarlo desde la terminal:
+john --wordlist=/usr/share/wordlists/rockyou.txt --rule=PoloPassword hash.txt
+```
+
+</Accordion>
+
+---
+
+## Los cinco objetivos reales
+
+Antes de cada objetivo, el patrón que los une a todos:
+
+<Mermaid title="El patrón es siempre el mismo — cambia la herramienta de conversión" chart={`
+flowchart LR
+  FILE["Archivo\nprotegido"] --> TOOL["Herramienta\nde conversión"]
+  TOOL --> HASH["hash.txt"]
+  HASH --> JOHN["John\ncrackea"]
+  JOHN --> PASS["Contraseña"]
+  PASS --> ACCESS["Accedés"]
+`} />
+
+### 1. Linux — `/etc/shadow`
+
+Solo accesible como root. Ahí viven los hashes de todas las contraseñas del sistema.
+
+El prefijo del hash indica el algoritmo:
+
+| Prefijo | Algoritmo | Estado |
+|---------|-----------|--------|
+| `$1$` | md5crypt | Viejo, muy crackeable |
+| `$6$` | sha512crypt | Común en sistemas actuales |
+| `$2b$` / `$2y$` | bcrypt | Robusto, lento de crackear |
+| `$y$` | yescrypt | Moderno, default actual |
+
+Dato histórico: antes las contraseñas se guardaban directamente en `/etc/passwd` en texto plano. Después las movieron a `/etc/shadow` con permisos más restrictivos (solo root) y dejaron una `x` en el campo de contraseña de `/etc/passwd` como indicador de "mirá en shadow".
+
+`/etc/shadow` tiene los hashes pero no todo el contexto del usuario. `/etc/passwd` tiene los usernames y el campo GECOS (nombre completo, etc.). `unshadow` los combina en el formato que John entiende:
+
+<Terminal title="cracking /etc/shadow" lines={[
+  { type: "prompt", text: "# unshadow combina passwd + shadow en formato John" },
+  { type: "prompt", text: "unshadow /etc/passwd /etc/shadow > unshadowed.txt" },
+  { type: "prompt", text: "john --wordlist=/usr/share/wordlists/rockyou.txt --format=sha512crypt unshadowed.txt" },
+  { type: "output", text: "Loaded 1 password hash (sha512crypt, crypt(3) $6$ [SHA512 256/256 AVX2 4x])" },
+  { type: "success", text: "letmein          (strategos)" },
+]} />
+
+### 2. Windows — NTLM
+
+Los hashes NTLM se guardan en la **SAM database** (Security Account Manager). Están cifrados y bloqueados mientras Windows corre — por eso herramientas como [Mimikatz](https://github.com/gentilkiwi/mimikatz) necesitan técnicas más complejas para extraerlos, como volcar la memoria del proceso `lsass` (el servicio que gestiona la autenticación en Windows).
+
+<Callout type="info" title="Pass-the-hash">
+  En Windows podés autenticarte **directamente con el hash NTLM** sin saber la contraseña — el protocolo lo acepta como credencial válida. Crackear importa cuando necesitás el texto plano específicamente: por ejemplo, para probar reutilización de contraseñas en otros servicios.
+</Callout>
+
+<Terminal title="cracking NTLM" lines={[
+  { type: "prompt", text: "john --format=nt --wordlist=/usr/share/wordlists/rockyou.txt ntlm.txt" },
+  { type: "output", text: "Loaded 1 password hash (NT [MD4 256/256 AVX2 8x3])" },
+  { type: "success", text: "mushroom         (admin)" },
+]} />
+
+### 3. ZIP protegido
+
+`zip2john` extrae el hash interno del archivo ZIP y lo convierte a formato John. El operador `>` **redirige la salida a un archivo** en lugar de mostrarla en pantalla — sin eso, el hash se imprime en la terminal y se pierde:
+
+<Terminal title="cracking ZIP" lines={[
+  { type: "prompt", text: "# Extraer hash del ZIP (> redirige la salida a zip_hash.txt)" },
+  { type: "prompt", text: "zip2john secure.zip > zip_hash.txt" },
+  { type: "prompt", text: "john --wordlist=/usr/share/wordlists/rockyou.txt zip_hash.txt" },
+  { type: "output", text: "Loaded 1 password hash (PKZIP [32/64])" },
+  { type: "success", text: "pass123          (secure.zip)" },
+  { type: "prompt", text: "# Descomprimir con la contraseña encontrada" },
+  { type: "prompt", text: "unzip secure.zip" },
+  { type: "output", text: "Archive:  secure.zip" },
+  { type: "output", text: "[secure.zip] flag.txt password: pass123" },
+]} />
+
+El resultado de `zip2john` incluye metadatos (el prefijo `$PKZIP$` o similar) que le dicen a John el algoritmo automáticamente — no necesitás especificar `--format`.
+
+### 4. RAR protegido
+
+Idéntico al flujo de ZIP. RAR usa su propio algoritmo de cifrado interno, distinto al de ZIP — por eso existe una herramienta separada en lugar de una genérica para archivos comprimidos:
+
+<Terminal title="cracking RAR" lines={[
+  { type: "prompt", text: "rar2john secure.rar > rar_hash.txt" },
+  { type: "prompt", text: "john --wordlist=/usr/share/wordlists/rockyou.txt rar_hash.txt" },
+  { type: "success", text: "password1        (secure.rar)" },
+  { type: "prompt", text: "unrar x secure.rar" },
+]} />
+
+### 5. SSH — claves privadas (el más jugoso en pentesting)
+
+Una clave `id_rsa` puede estar cifrada con **passphrase** — una contraseña que protege el archivo de la clave privada. Si comprometés un servidor y encontrás un `id_rsa` en el home de un usuario, crackear la passphrase te permite **moverte lateralmente** a otros servidores donde ese usuario tiene acceso.
+
+Ya vimos en el módulo de [SSH y claves asimétricas](/salas/crypto/ssh-gpg-confianza-digital) cómo funciona el par `id_rsa`/`id_rsa.pub` y por qué la passphrase es una capa de protección local. Acá lo conectamos con cracking.
+
+`ssh2john` es un **script Python**, no un binario compilado — por eso la ruta cambia según el sistema:
+
+<Terminal title="cracking SSH passphrase" lines={[
+  { type: "prompt", text: "# AttackBox / TryHackMe:" },
+  { type: "prompt", text: "python3 /opt/john/ssh2john.py id_rsa > id_rsa_hash.txt" },
+  { type: "prompt", text: "# Kali:" },
+  { type: "prompt", text: "python /usr/share/john/ssh2john.py id_rsa > id_rsa_hash.txt" },
+  { type: "prompt", text: "" },
+  { type: "prompt", text: "# Crackear:" },
+  { type: "prompt", text: "john --wordlist=/usr/share/wordlists/rockyou.txt id_rsa_hash.txt" },
+  { type: "output", text: "Loaded 1 password hash (SSH, SSH private key [RSA/DSA/EC/OPENSSH 32/64])" },
+  { type: "success", text: "mango            (id_rsa)" },
+]} />
+
+---
+
+## Practicá — mini CTF
+
+Identificá el tipo, elegí el modo, crackeá. La verificación usa hashing client-side — la respuesta nunca está en el código fuente:
+
+<HashChallenge
+  type="MD5"
+  answer="biscuit"
+  difficulty={1}
+  context="Encontraste este hash en /etc/shadow de un servidor Linux después de obtener acceso root."
+  hint="32 caracteres hex → MD5. Wordlist mode con rockyou.txt."
+/>
+
+<HashChallenge
+  type="SHA-1"
+  answer="kangaroo"
+  difficulty={2}
+  context="Extrajiste este hash de una base de datos web legacy que usaba SHA-1 sin salt."
+  hint="40 caracteres hex → SHA-1. john --format=Raw-SHA1 --wordlist=rockyou.txt"
+/>
+
+<HashChallenge
+  type="SHA-256"
+  answer="microphone"
+  difficulty={2}
+  context="Un archivo de configuración usaba este hash como verificación de contraseña."
+  hint="64 caracteres hex → SHA-256. Cuidado: especificá --format=Raw-SHA256 o John puede apostar mal."
+/>
+
+---
+
+<Quiz question="Si un hash tiene 64 caracteres hex y John no encuentra la contraseña en modo automático con rockyou.txt, ¿qué puede estar pasando?" hint="Pensá en cuántos algoritmos distintos producen 64 caracteres hex.">
+
+John en modo automático **apostó por el formato equivocado**. 64 caracteres hex pueden ser SHA-256, Keccak-256, HAVAL-256, Skein-256 o Stribog-256. Si John asumió SHA-256 pero el hash es Keccak-256, cada hash que calcule va a ser distinto al objetivo — nunca va a coincidir. La solución: especificar el formato exacto con `--format`. Si no estás seguro, probá los candidatos uno por uno.
+
+</Quiz>
+
+---
+
+John the Ripper es la herramienta de entrada al cracking. Lo que vimos acá — dictionary attacks, single crack, rules, y el flujo de conversión para cada tipo de archivo — es el mismo flujo que vas a usar en cada CTF y cada auditoría. El hash no se revierte; se reproduce. Y si la contraseña es débil, se reproduce en menos de un segundo.
