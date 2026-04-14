@@ -24,4 +24,22 @@ export const SERIES: Record<string, SeriesMeta> = {
     icon: '🔐',
     color: '#a29bfe',
   },
+  'cve': {
+    title: 'CVE Analysis',
+    description: 'Análisis técnico de vulnerabilidades reales: cómo funcionan, cómo se explotan y cómo se detectan.',
+    icon: '🐛',
+    color: '#ff6b6b',
+  },
+  'metasploit': {
+    title: 'Metasploit',
+    description: 'El framework de explotación estándar: módulos, payloads, Meterpreter y práctica en máquinas reales.',
+    icon: '⚔️',
+    color: '#00b894',
+  },
+  'ia': {
+    title: 'IA & Seguridad',
+    description: 'Cómo la inteligencia artificial cambia el panorama de la ciberseguridad: amenazas nuevas, ataques amplificados y defensas.',
+    icon: '🧠',
+    color: '#fd79a8',
+  },
 };

