@@ -45,6 +45,7 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
 <BaseLayout
   title={title}
   description={excerpt}
+  ogImage={currentSlug ? `/og/${currentSlug}.png` : undefined}
   bodyClass="pattern-lines"
   article={{ publishedTime: date.toISOString(), tags }}
 >

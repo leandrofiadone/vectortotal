@@ -12,12 +12,14 @@
     "@anthropic-ai/sdk": "^0.78.0",
     "@astrojs/mdx": "^4.3.13",
     "@astrojs/sitemap": "^3.7.0",
+    "@resvg/resvg-js": "^2.6.2",
     "@vercel/analytics": "^1.6.1",
     "astro": "^5.17.1",
     "astro-expressive-code": "^0.41.7",
     "mermaid": "^11.13.0",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
+    "satori": "^0.26.0",
     "three": "^0.183.2"
   },
   "devDependencies": {
