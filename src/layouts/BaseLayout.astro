@@ -1,5 +1,6 @@
 ---
 import { ClientRouter } from 'astro:transitions';
+import Analytics from '@vercel/analytics/astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import '../styles/global.css';
@@ -120,6 +121,9 @@ const jsonLD = article
 
     <!-- View Transitions -->
     <ClientRouter />
+
+    <!-- Vercel Analytics -->
+    <Analytics />
   </head>
   <body class={bodyClass}>
     <div class="noise-overlay" aria-hidden="true"></div>
@@ -128,9 +132,5 @@ const jsonLD = article
       <slot />
     </main>
     <Footer />
-    <script>
-      import { inject } from '@vercel/analytics';
-      inject();
-    </script>
   </body>
 </html>
