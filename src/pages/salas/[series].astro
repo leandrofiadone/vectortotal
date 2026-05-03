@@ -218,7 +218,7 @@ let globalNum = 1;
   /* Grid de subsecciones */
   .subsection-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
     gap: 16px;
   }
 
@@ -344,6 +344,21 @@ let globalNum = 1;
   }
 
   @media (max-width: 640px) {
-    .subsection-grid { grid-template-columns: 1fr; }
+    .page-wrap { padding-top: 28px; padding-bottom: 60px; }
+    .breadcrumb { margin-bottom: 24px; font-size: 0.72rem; }
+    .area-header {
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+    }
+    .area-icon-wrap { width: 48px; height: 48px; }
+    .area-icon { font-size: 1.4rem; }
+    .area-info { flex: 1 1 200px; }
+    .area-desc { font-size: 0.85rem; }
+    .area-count { font-size: 0.65rem; padding: 3px 8px; }
+    .subsection-grid { grid-template-columns: 1fr; gap: 12px; }
+    .card-body { padding: 16px; gap: 12px; }
+    .card-preview { padding: 10px; }
   }
 </style>

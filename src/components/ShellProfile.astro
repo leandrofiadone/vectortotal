@@ -167,4 +167,16 @@ const { name, full, tagline, color, default: isDefault = false, stats, bestFor }
     color: var(--text-dim);
     background: var(--bg3);
   }
+
+  @media (max-width: 640px) {
+    .shell-profile { padding: 14px 16px; }
+    .shell-name { font-size: 1.15rem; }
+    .shell-tagline { font-size: 0.82rem; }
+    .shell-stats {
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .stat-value { font-size: 0.78rem; }
+  }
 </style>

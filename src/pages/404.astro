@@ -123,4 +123,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     flex-wrap: wrap;
     justify-content: center;
   }
+
+  @media (max-width: 640px) {
+    .page-404 { padding: 48px 16px; min-height: 50vh; }
+    .terminal-404 { font-size: 0.72rem; margin-bottom: 28px; }
+    .terminal-body { padding: 12px; }
+    .t-line { gap: 6px; flex-wrap: wrap; }
+    .desc-404 { font-size: 0.88rem; margin-bottom: 24px; }
+    .actions-404 { flex-direction: column; width: 100%; max-width: 280px; }
+    .actions-404 .btn-primary,
+    .actions-404 .btn-secondary { justify-content: center; width: 100%; }
+  }
 </style>

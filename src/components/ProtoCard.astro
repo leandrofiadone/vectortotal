@@ -240,4 +240,19 @@ const factTips: Record<string, string> = {
   .has-tip:hover::before {
     opacity: 1;
   }
+
+  @media (max-width: 640px) {
+    .proto-card { padding: 16px 18px; }
+    .proto-top { gap: 8px; flex-wrap: wrap; }
+    .proto-name { font-size: 1.35rem; }
+    .proto-layer { font-size: 0.65rem; padding: 3px 8px; }
+    .proto-desc { font-size: 0.85rem; padding-bottom: 12px; margin-bottom: 12px; }
+    .proto-facts { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+    .fact-value { font-size: 0.78rem; }
+    .has-tip::after {
+      max-width: min(260px, calc(100vw - 32px));
+      font-size: 0.66rem;
+      padding: 6px 10px;
+    }
+  }
 </style>

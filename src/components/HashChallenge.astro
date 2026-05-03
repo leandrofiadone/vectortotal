@@ -271,7 +271,17 @@ document.addEventListener('astro:page-load', () => {
   }
 
   @media (max-width: 640px) {
-    .challenge-hash { font-size: 0.68rem; }
-    .challenge-answer { font-size: 0.78rem; }
+    .challenge-body { padding: 12px; gap: 9px; }
+    .challenge-bar { padding: 7px 12px; }
+    .challenge-type { font-size: 0.66rem; padding: 2px 8px; }
+    .challenge-context { font-size: 0.76rem; }
+    .challenge-hash { font-size: 0.68rem; padding: 8px 10px; line-height: 1.6; }
+    .challenge-input-row { gap: 6px; flex-wrap: wrap; }
+    .challenge-answer { font-size: 0.78rem; min-width: 0; flex: 1 1 140px; }
+    .challenge-btn { font-size: 0.72rem; padding: 6px 12px; }
+  }
+
+  @media (max-width: 380px) {
+    .challenge-hash { font-size: 0.62rem; }
   }
 </style>

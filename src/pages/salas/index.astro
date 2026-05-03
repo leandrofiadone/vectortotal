@@ -117,7 +117,7 @@ const totalPosts = posts.length;
   /* Grid de áreas */
   .areas-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
     gap: 16px;
   }
 
@@ -260,6 +260,15 @@ const totalPosts = posts.length;
   }
 
   @media (max-width: 640px) {
-    .areas-grid { grid-template-columns: 1fr; }
+    .page-wrap { padding-top: 32px; padding-bottom: 60px; }
+    .page-header { margin-bottom: 32px; }
+    .page-desc { font-size: 0.85rem; }
+    .areas-grid { grid-template-columns: 1fr; gap: 12px; }
+    .card-body { padding: 16px; gap: 12px; }
+    .card-head { gap: 10px; }
+    .card-icon { font-size: 1.3rem; }
+    .card-title { font-size: 0.95rem; }
+    .card-desc { font-size: 0.78rem; }
+    .card-preview { padding: 10px; }
   }
 </style>

@@ -121,4 +121,12 @@ const { n, title, label, last = false } = Astro.props;
     border-radius: 3px;
     color: var(--accent);
   }
+
+  @media (max-width: 640px) {
+    .step { gap: 12px; }
+    .step-circle { width: 32px; height: 32px; font-size: 0.8rem; }
+    .step-right { padding-bottom: 20px; }
+    .step-title { font-size: 0.95rem; }
+    .step-body { font-size: 0.88rem; line-height: 1.6; }
+  }
 </style>

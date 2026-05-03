@@ -256,7 +256,7 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
   }
 
   @media (max-width: 900px) {
-    .post-grid { grid-template-columns: 1fr; }
+    .post-grid { grid-template-columns: 1fr; gap: 24px; margin-top: 24px; }
     .post-sidebar {
       position: static;
       padding-top: 24px;
@@ -266,6 +266,26 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
 
   @media (max-width: 640px) {
     .useful-item { grid-template-columns: 110px 1fr 32px; }
+    .breadcrumb { font-size: 0.72rem; gap: 4px; padding: 16px 0 0; }
+    .post-container { padding-bottom: 60px; }
+    .post-header { margin-bottom: 28px; }
+    .post-title { margin-bottom: 10px; }
+    .post-tags { gap: 5px; margin-bottom: 14px; }
+    .toc-widget { padding: 12px; }
+    .toc-link { font-size: 0.72rem; padding: 4px 6px; }
+  }
+
+  @media (max-width: 480px) {
+    .breadcrumb {
+      font-size: 0.7rem;
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .breadcrumb::-webkit-scrollbar { display: none; }
+    .bc-item { flex-shrink: 0; }
   }
 
   /* Next / Prev nav */
@@ -321,6 +341,7 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
 
   @media (max-width: 640px) {
     .post-nav-inner { grid-template-columns: 1fr; }
+    .post-nav-link { padding: 14px; }
     .post-nav-link.next { text-align: left; }
   }
 </style>

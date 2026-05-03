@@ -175,4 +175,19 @@ const posts = (await getCollection('posts'))
     color: var(--text-dim);
     font-size: 0.85rem;
   }
+
+  @media (max-width: 640px) {
+    .page-wrap { padding-top: 28px; padding-bottom: 60px; }
+    .breadcrumb { margin-bottom: 24px; font-size: 0.72rem; flex-wrap: wrap; }
+    .area-header {
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+    }
+    .area-icon-wrap { width: 48px; height: 48px; }
+    .area-icon { font-size: 1.4rem; }
+    .area-info { flex: 1 1 200px; }
+    .area-count { font-size: 0.65rem; padding: 3px 8px; }
+  }
 </style>

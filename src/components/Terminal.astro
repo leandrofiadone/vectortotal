@@ -112,4 +112,13 @@ const { title = 'terminal', lines } = Astro.props;
     animation: blink 1s step-end infinite;
     color: var(--accent);
   }
+
+  @media (max-width: 640px) {
+    .terminal { font-size: 0.7rem; }
+    .terminal-body { padding: 12px; gap: 3px; }
+    .terminal-bar { padding: 8px 12px; }
+    .terminal-title { font-size: 0.68rem; }
+    .t-line { gap: 6px; flex-wrap: wrap; }
+    .t-output .t-text { padding-left: 0; }
+  }
 </style>

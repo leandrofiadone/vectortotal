@@ -335,14 +335,28 @@ const totalCategories = Object.keys(categoryCounts).length;
   }
 
   @media (max-width: 900px) {
-    .hero-inner { grid-template-columns: 1fr; }
+    .hero-inner { grid-template-columns: 1fr; gap: 32px; }
     .hero-terminal { display: none; }
-    .main-grid { grid-template-columns: 1fr; }
+    .main-grid { grid-template-columns: 1fr; gap: 32px; padding-top: 32px; padding-bottom: 60px; }
   }
 
   @media (max-width: 640px) {
-    .hero { padding: 48px 0 40px; }
+    .hero { padding: 40px 0 32px; }
+    .hero-brand { margin-bottom: 14px; }
+    .hero-desc { font-size: 0.92rem; margin-bottom: 22px; }
+    .stats-bar { padding: 14px 0; }
+    .stats-inner { gap: 4px; }
     .stat-sep { display: none; }
-    .stat-item { min-width: 50%; }
+    .stat-item { min-width: 50%; flex-basis: 50%; padding: 6px 8px; }
+    .stat-val { font-size: 1.2rem; }
+    .stat-label { font-size: 0.65rem; }
+    .post-list { gap: 24px; }
+    .area-group-posts { gap: 8px; }
+    .area-group-title { font-size: 0.7rem; }
+  }
+
+  @media (max-width: 380px) {
+    .hero { padding: 32px 0 24px; }
+    .hero-cta .btn-primary { padding: 9px 18px; font-size: 0.78rem; }
   }
 </style>

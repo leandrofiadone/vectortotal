@@ -110,4 +110,13 @@ const { question, hint } = Astro.props;
   }
   .quiz-answer :global(pre) { margin: 0.8rem 0; }
   .quiz-answer :global(ul) { margin: 0.5rem 0; padding-left: 1.2rem; }
+
+  @media (max-width: 640px) {
+    .quiz-header { padding: 0.85rem 1rem 0.5rem; gap: 0.6rem; }
+    .quiz-icon { width: 24px; height: 24px; font-size: 0.8rem; }
+    .quiz-question { font-size: 0.88rem; }
+    .quiz-hint { padding: 0 1rem 0.5rem 2.5rem; font-size: 0.8rem; }
+    .quiz-toggle { padding: 0.6rem 1rem; font-size: 0.78rem; }
+    .quiz-answer { padding: 0.85rem 1rem; font-size: 0.88rem; }
+  }
 </style>

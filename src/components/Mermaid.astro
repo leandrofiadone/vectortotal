@@ -189,6 +189,18 @@ const { chart, title } = Astro.props;
   .mermaid-chart :global(.edgeLabel span) {
     color: #ffd32a !important;
   }
+
+  @media (max-width: 640px) {
+    .mermaid-wrap { margin: 1.2rem 0; }
+    .mermaid-title { padding: 0.6rem 1rem; font-size: 0.78rem; }
+    .mermaid-chart {
+      padding: 1.2rem 0.8rem;
+      -webkit-overflow-scrolling: touch;
+    }
+    .mermaid-chart :global(.messageText) {
+      font-size: 11px !important;
+    }
+  }
 </style>
 
 <script>

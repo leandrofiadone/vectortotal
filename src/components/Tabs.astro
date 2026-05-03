@@ -106,4 +106,10 @@ const { labels } = Astro.props;
     padding: 0.15em 0.4em;
     border-radius: 4px;
   }
+
+  @media (max-width: 640px) {
+    .tab-bar { -webkit-overflow-scrolling: touch; }
+    .tab-btn { padding: 0.6rem 0.9rem; font-size: 0.78rem; }
+    .tab-panels :global(.tab-panel) { padding: 0.9rem 1rem; font-size: 0.9rem; }
+  }
 </style>

@@ -201,7 +201,13 @@ const subsectionLabel = subsection
   }
 
   @media (max-width: 640px) {
-    .post-card { grid-template-columns: 36px 1fr; }
+    .post-card { grid-template-columns: 28px 1fr; gap: 12px; padding: 14px 16px; }
     .post-arrow { display: none; }
+    .post-num { font-size: 0.72rem; }
+    .post-title { font-size: 0.98rem; margin-bottom: 5px; }
+    .post-excerpt { font-size: 0.82rem; margin-bottom: 10px; }
+    .post-footer { gap: 8px; flex-direction: column; align-items: flex-start; }
+    .post-tags { gap: 4px; }
+    .post-date, .post-read, .meta-sep { font-size: 0.66rem; }
   }
 </style>

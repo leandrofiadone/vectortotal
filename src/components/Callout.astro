@@ -69,4 +69,14 @@ const cfg = config[type];
   .callout-tip     .callout-label { color: #27c93f; }
   .callout-warning .callout-label { color: #ffd32a; }
   .callout-danger  .callout-label { color: #ff4757; }
+
+  @media (max-width: 640px) {
+    .callout {
+      padding: 12px 14px;
+      gap: 10px;
+      font-size: 0.88rem;
+      margin: 1.2em 0;
+    }
+    .callout-icon { font-size: 1rem; }
+  }
 </style>

@@ -95,11 +95,23 @@ const maxVal = maxOverride ?? Math.max(...bars.map(b => b.value));
   }
 
   @media (max-width: 640px) {
+    .barchart { padding: 1rem; }
+    .barchart-title { font-size: 0.78rem; }
     .bar-row {
-      grid-template-columns: 80px 1fr 50px;
+      grid-template-columns: 70px 1fr 44px;
       gap: 0.5rem;
     }
-    .bar-label { font-size: 0.75rem; }
-    .bar-value { font-size: 0.75rem; }
+    .bar-track { height: 18px; }
+    .bar-label { font-size: 0.72rem; }
+    .bar-value { font-size: 0.72rem; }
+  }
+
+  @media (max-width: 380px) {
+    .bar-row {
+      grid-template-columns: 60px 1fr 38px;
+      gap: 0.4rem;
+    }
+    .bar-label { font-size: 0.68rem; }
+    .bar-value { font-size: 0.68rem; }
   }
 </style>

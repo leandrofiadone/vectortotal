@@ -367,12 +367,28 @@ document.addEventListener('astro:page-load', () => {
   }
 
   @media (max-width: 640px) {
+    .livehash-body { padding: 12px; gap: 12px; }
+    .livehash-bar { padding: 8px 12px; }
+    .livehash-input-row { gap: 8px; flex-wrap: wrap; }
+    .livehash-prompt { font-size: 0.75rem; }
+    .livehash-input { font-size: 0.78rem; padding: 7px 10px; min-width: 0; }
+
     .livehash-grid {
       grid-template-columns: repeat(8, 1fr);
+      gap: 2px;
     }
 
     .livehash-hex {
       font-size: 0.68rem;
+      line-height: 1.55;
     }
+
+    .avalanche-value { font-size: 0.72rem; }
+  }
+
+  @media (max-width: 380px) {
+    .livehash-grid { grid-template-columns: repeat(8, 1fr); gap: 2px; }
+    .livehash-hex { font-size: 0.62rem; }
+    .avalanche-value { font-size: 0.68rem; }
   }
 </style>
