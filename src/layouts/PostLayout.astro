@@ -163,16 +163,18 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
 
   .post-grid {
     display: grid;
-    grid-template-columns: 1fr 240px;
+    grid-template-columns: minmax(0, 1fr) 240px;
     gap: 40px;
     margin-top: 32px;
     align-items: start;
   }
 
   .post-grid.no-sidebar {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     max-width: 760px;
   }
+
+  .post-article { min-width: 0; }
 
   .post-header { margin-bottom: 40px; }
 
@@ -182,6 +184,8 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
     font-weight: 800;
     line-height: 1.2;
     margin-bottom: 14px;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     background: linear-gradient(135deg, var(--text-bright) 0%, var(--accent) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -256,7 +260,7 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
   }
 
   @media (max-width: 900px) {
-    .post-grid { grid-template-columns: 1fr; gap: 24px; margin-top: 24px; }
+    .post-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
     .post-sidebar {
       position: static;
       padding-top: 24px;

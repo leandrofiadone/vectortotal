@@ -317,6 +317,8 @@ a:hover {
   font-family: var(--body);
   font-size: 1rem;
   line-height: 1.8;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .prose h1, .prose h2, .prose h3, .prose h4 {
@@ -325,6 +327,8 @@ a:hover {
   margin-top: 2em;
   margin-bottom: 0.6em;
   scroll-margin-top: 80px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .prose h1 { 
