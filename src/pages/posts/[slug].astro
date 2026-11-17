@@ -1,16 +1,14 @@
 ---
-import { getCollection } from 'astro:content';
+import { getPublishedPosts, postUrl } from '../../utils/posts';
 
+// URLs viejas /posts/<slug> → URL canónica del post.
 export async function getStaticPaths() {
-  const posts = await getCollection('posts', p => !p.data.draft && !!p.data.series);
-  return posts.map(post => ({
-    params: { slug: post.slug },
-    props: { series: post.data.series! },
-  }));
+  const posts = await getPublishedPosts();
+  return posts
+    .filter(p => p.data.series)
+    .map(post => ({ params: { slug: post.slug }, props: { target: postUrl(post) } }));
 }
 
-const { series } = Astro.props;
-const { slug } = Astro.params;
-
-return Astro.redirect(`/salas/${series}/${slug}`, 301);
+const { target } = Astro.props;
+return Astro.redirect(target, 301);
 ---

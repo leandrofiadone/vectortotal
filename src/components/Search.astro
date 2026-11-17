@@ -1,0 +1,434 @@
+---
+// Buscador tipo paleta de comandos. Se abre con Ctrl/Cmd+K, "/" o el botón del header.
+// El índice (/search.json) se baja recién la primera vez que se abre.
+---
+
+<dialog class="search-dialog" id="searchDialog" aria-label="Buscar en vectortotal">
+  <div class="search-box">
+    <div class="search-input-row">
+      <span class="search-prompt" aria-hidden="true">grep</span>
+      <input
+        type="search"
+        id="searchInput"
+        class="search-input"
+        placeholder="buscar salas, protocolos, herramientas…"
+        autocomplete="off"
+        spellcheck="false"
+        aria-label="Buscar"
+        aria-controls="searchResults"
+      />
+      <kbd class="search-esc">esc</kbd>
+    </div>
+    <ul class="search-results" id="searchResults" role="listbox" aria-label="Resultados"></ul>
+    <p class="search-status" id="searchStatus" role="status"></p>
+    <div class="search-foot" aria-hidden="true">
+      <span><kbd>↑</kbd><kbd>↓</kbd> navegar</span>
+      <span><kbd>↵</kbd> abrir</span>
+      <span><kbd>esc</kbd> cerrar</span>
+    </div>
+  </div>
+</dialog>
+
+<style>
+  .search-dialog {
+    margin: 12vh auto 0;
+    width: min(640px, calc(100vw - 24px));
+    max-height: 72vh;
+    padding: 0;
+    background: var(--bg2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 229, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .search-dialog::backdrop {
+    background: rgba(4, 7, 10, 0.72);
+    backdrop-filter: blur(3px);
+  }
+
+  .search-box { display: flex; flex-direction: column; max-height: 72vh; }
+
+  .search-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-prompt {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-bright);
+    font-family: var(--mono);
+    font-size: 0.95rem;
+  }
+
+  .search-input::placeholder { color: var(--text-dim); opacity: 0.7; }
+  .search-input::-webkit-search-cancel-button { display: none; }
+
+  kbd {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+
+  .search-results {
+    list-style: none;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .search-results:empty { display: none; }
+
+  .search-results :global(.sr-link) {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+
+  .search-results :global(li[aria-selected='true'] .sr-link) {
+    background: rgba(0, 229, 255, 0.07);
+    border-left-color: var(--accent);
+  }
+
+  .search-results :global(.sr-area) {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+  }
+
+  .search-results :global(.sr-title) {
+    font-family: var(--display);
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.3;
+  }
+
+  .search-results :global(.sr-sub) {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .search-results :global(mark) {
+    background: rgba(0, 229, 255, 0.18);
+    color: var(--accent);
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+
+  .search-status {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    padding: 18px 16px;
+  }
+
+  .search-status:empty { display: none; }
+
+  .search-foot {
+    display: flex;
+    gap: 16px;
+    padding: 9px 16px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    color: var(--text-dim);
+    background: var(--bg);
+  }
+
+  .search-foot span { display: inline-flex; align-items: center; gap: 4px; }
+
+  @media (max-width: 640px) {
+    .search-dialog { margin-top: 8px; max-height: 86vh; }
+    .search-box { max-height: 86vh; }
+    .search-foot { display: none; }
+    /* 16px evita el zoom automático de iOS al enfocar */
+    .search-input { font-size: 16px; }
+  }
+</style>
+
+<script>
+  import { getRead } from '../scripts/readState';
+
+  interface Entry {
+    slug: string;
+    title: string;
+    excerpt: string;
+    url: string;
+    tags: string[];
+    area: string;
+    sub: string | null;
+    headings: string[];
+  }
+
+  interface Hit {
+    entry: Entry;
+    score: number;
+    heading: string | null;
+  }
+
+  let index: Entry[] | null = null;
+  let loading: Promise<Entry[]> | null = null;
+  let selected = 0;
+  let hits: Hit[] = [];
+
+  // Sin tildes y en minúsculas: "criptografia" encuentra "Criptografía".
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  /** Resalta los términos sobre el texto original (normalizar no cambia el largo carácter a carácter en NFC típico). */
+  function highlight(text: string, terms: string[]): string {
+    const n = norm(text);
+    if (n.length !== text.length) return escapeHtml(text);
+    const ranges: [number, number][] = [];
+    for (const t of terms) {
+      let from = 0;
+      while (true) {
+        const i = n.indexOf(t, from);
+        if (i === -1) break;
+        ranges.push([i, i + t.length]);
+        from = i + t.length;
+      }
+    }
+    if (ranges.length === 0) return escapeHtml(text);
+    ranges.sort((a, b) => a[0] - b[0]);
+    let out = '';
+    let pos = 0;
+    for (const [s, e] of ranges) {
+      if (s < pos) continue;
+      out += escapeHtml(text.slice(pos, s)) + '<mark>' + escapeHtml(text.slice(s, e)) + '</mark>';
+      pos = e;
+    }
+    return out + escapeHtml(text.slice(pos));
+  }
+
+  function loadIndex(): Promise<Entry[]> {
+    if (index) return Promise.resolve(index);
+    loading ??= fetch('/search.json')
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<Entry[]>;
+      })
+      .then(data => (index = data))
+      .catch(err => {
+        loading = null;
+        throw err;
+      });
+    return loading;
+  }
+
+  function search(query: string, data: Entry[]): Hit[] {
+    const terms = norm(query).split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return [];
+    const out: Hit[] = [];
+
+    for (const entry of data) {
+      const title = norm(entry.title);
+      const tags = entry.tags.map(norm);
+      const area = norm(`${entry.area} ${entry.sub ?? ''}`);
+      const excerpt = norm(entry.excerpt);
+      const heads = entry.headings.map(norm);
+
+      let score = 0;
+      let heading: string | null = null;
+      let all = true;
+
+      for (const t of terms) {
+        let s = 0;
+        if (title.includes(t)) s += title.startsWith(t) || title.includes(` ${t}`) ? 12 : 8;
+        if (tags.some(tag => tag === t)) s += 6;
+        else if (tags.some(tag => tag.includes(t))) s += 3;
+        if (area.includes(t)) s += 4;
+        const hi = heads.findIndex(h => h.includes(t));
+        if (hi !== -1) {
+          s += 5;
+          heading ??= entry.headings[hi];
+        }
+        if (excerpt.includes(t)) s += 2;
+        if (s === 0) { all = false; break; }
+        score += s;
+      }
+
+      if (all) out.push({ entry, score, heading });
+    }
+
+    return out.sort((a, b) => b.score - a.score).slice(0, 8);
+  }
+
+  function els() {
+    return {
+      dialog: document.getElementById('searchDialog') as HTMLDialogElement | null,
+      input: document.getElementById('searchInput') as HTMLInputElement | null,
+      list: document.getElementById('searchResults') as HTMLUListElement | null,
+      status: document.getElementById('searchStatus') as HTMLElement | null,
+    };
+  }
+
+  function render(query: string) {
+    const { list, status } = els();
+    if (!list || !status) return;
+    const terms = norm(query).split(/\s+/).filter(Boolean);
+    const read = getRead();
+
+    list.innerHTML = hits
+      .map((h, i) => {
+        const sub = h.heading
+          ? `§ ${highlight(h.heading, terms)}`
+          : highlight(h.entry.excerpt, terms);
+        const area = [h.entry.area, h.entry.sub].filter(Boolean).join(' › ');
+        const done = read.has(h.entry.slug) ? ' · ✓ leído' : '';
+        return `<li role="option" id="sr-${i}" aria-selected="${i === selected}">
+          <a class="sr-link" href="${escapeHtml(h.entry.url)}" tabindex="-1">
+            <span class="sr-area">${escapeHtml(area)}${done}</span>
+            <span class="sr-title">${highlight(h.entry.title, terms)}</span>
+            <span class="sr-sub">${sub}</span>
+          </a>
+        </li>`;
+      })
+      .join('');
+
+    if (!query.trim()) status.textContent = 'Escribí para buscar. Probá: dns, hash, ssh, metasploit…';
+    else if (hits.length === 0) status.textContent = `Sin resultados para "${query}".`;
+    else status.textContent = '';
+  }
+
+  function select(i: number) {
+    const { list, input } = els();
+    if (!list || hits.length === 0) return;
+    selected = (i + hits.length) % hits.length;
+    list.querySelectorAll('li').forEach((li, idx) => {
+      li.setAttribute('aria-selected', String(idx === selected));
+      if (idx === selected) li.scrollIntoView({ block: 'nearest' });
+    });
+    input?.setAttribute('aria-activedescendant', `sr-${selected}`);
+  }
+
+  async function run() {
+    const { input, status } = els();
+    if (!input) return;
+    const query = input.value;
+    try {
+      const data = await loadIndex();
+      if (input.value !== query) return; // llegó tarde, ya hay otra búsqueda
+      hits = search(query, data);
+      selected = 0;
+      render(query);
+    } catch {
+      hits = [];
+      render('');
+      if (status) status.textContent = 'No se pudo cargar el índice de búsqueda. Reintentá en un momento.';
+    }
+  }
+
+  function open() {
+    const { dialog, input } = els();
+    if (!dialog || dialog.open) return;
+    dialog.showModal();
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+    hits = [];
+    render('');
+    loadIndex().catch(() => {});
+  }
+
+  function close() {
+    els().dialog?.close();
+  }
+
+  // Atajos globales — se registran una sola vez (el módulo corre una vez por sesión).
+  document.addEventListener('keydown', e => {
+    const { dialog } = els();
+    if (!dialog) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      dialog.open ? close() : open();
+      return;
+    }
+
+    if (e.key === '/' && !dialog.open && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const t = e.target as HTMLElement | null;
+      const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      if (!typing) {
+        e.preventDefault();
+        open();
+      }
+    }
+  });
+
+  // El DOM se reemplaza en cada navegación: re-enganchar elementos de la página nueva.
+  document.addEventListener('astro:page-load', () => {
+    const { dialog, input, list } = els();
+    if (!dialog || !input || !list) return;
+
+    document.querySelectorAll<HTMLElement>('[data-search-open]').forEach(btn => {
+      btn.addEventListener('click', open);
+    });
+
+    input.addEventListener('input', run);
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); select(selected + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); select(selected - 1); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        list.querySelector<HTMLAnchorElement>(`#sr-${selected} .sr-link`)?.click();
+      }
+    });
+
+    list.addEventListener('mousemove', e => {
+      const li = (e.target as HTMLElement).closest('li');
+      if (!li) return;
+      const i = Number(li.id.replace('sr-', ''));
+      if (i !== selected) select(i);
+    });
+
+    // Click en un resultado: cerrar antes de navegar
+    list.addEventListener('click', e => {
+      if ((e.target as HTMLElement).closest('.sr-link')) close();
+    });
+
+    // Click en el backdrop cierra
+    dialog.addEventListener('click', e => {
+      if (e.target === dialog) close();
+    });
+  });
+
+  document.addEventListener('astro:before-swap', close);
+</script>

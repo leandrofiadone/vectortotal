@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
-import { getCollection } from 'astro:content';
+import { getPublishedPosts, byReadingOrder } from '../../utils/posts';
 import { SERIES } from '../../data/series';
 import { toSlug } from '../../utils/slug';
 import { readingTime } from '../../utils/readingTime';
@@ -15,9 +15,9 @@ export async function getStaticPaths() {
 const { series: seriesKey } = Astro.params;
 const meta = SERIES[seriesKey];
 
-const posts = (await getCollection('posts'))
-  .filter(p => !p.data.draft && p.data.series === seriesKey)
-  .sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+const posts = (await getPublishedPosts())
+  .filter(p => p.data.series === seriesKey)
+  .sort(byReadingOrder);
 
 // Agrupar por subsección si existe
 const subsectionMap = new Map<string, typeof posts>();
@@ -34,7 +34,6 @@ for (const post of posts) {
 }
 
 const hasSubsections = subsectionMap.size > 0;
-let globalNum = 1;
 ---
 
 <BaseLayout
@@ -101,6 +100,7 @@ let globalNum = 1;
                 )}
                 <div class="card-footer">
                   <span class="card-cta">explorar →</span>
+                  <span class="read-count" data-read-count={subPosts.map(p => p.slug).join(',')} hidden></span>
                 </div>
               </div>
             </a>
@@ -319,7 +319,7 @@ let globalNum = 1;
     color: var(--text-dim);
   }
 
-  .card-footer { margin-top: auto; }
+  .card-footer { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
   .card-cta {
     font-family: var(--mono);

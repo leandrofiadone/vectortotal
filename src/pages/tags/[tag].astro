@@ -1,12 +1,13 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
-import { getCollection } from 'astro:content';
+import { getPublishedPosts, byNewest } from '../../utils/posts';
+import { toSlug } from '../../utils/slug';
 import { readingTime } from '../../utils/readingTime';
 import { getTagColor } from '../../data/tags';
 
 export async function getStaticPaths() {
-  const posts = (await getCollection('posts')).filter(p => !p.data.draft);
+  const posts = await getPublishedPosts();
 
   const tagSet = new Set<string>();
   for (const post of posts) {
@@ -20,7 +21,7 @@ export async function getStaticPaths() {
     props: {
       posts: posts
         .filter(p => p.data.tags.map(t => t.toLowerCase()).includes(tag))
-        .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf()),
+        .sort(byNewest),
     },
   }));
 }
@@ -69,6 +70,7 @@ const tagColor = getTagColor(tag);
           tags={post.data.tags}
           slug={post.slug}
           series={post.data.series}
+          subsection={post.data.subsection ? toSlug(post.data.subsection) : undefined}
           num={i + 1}
           readingTime={readingTime(post.body)}
         />

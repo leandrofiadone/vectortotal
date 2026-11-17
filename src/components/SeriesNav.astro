@@ -15,7 +15,8 @@ interface Props {
 
 const { series, subsection, posts, currentSlug } = Astro.props;
 const meta = SERIES[series];
-const sorted = [...posts].sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+// El orden lo decide quien llama (PostLayout usa byReadingOrder).
+const sorted = posts;
 const backHref = subsection ? `/salas/${series}/${subsection}` : `/salas/${series}`;
 const postHref = (slug: string) => subsection
   ? `/salas/${series}/${subsection}/${slug}`
@@ -33,8 +34,8 @@ const postHref = (slug: string) => subsection
   </a>
   <ol class="series-list">
     {sorted.map((post, i) => (
-      <li class:list={['series-item', post.slug === currentSlug && 'current']}>
-        <a href={postHref(post.slug)} class="series-link">
+      <li class:list={['series-item', post.slug === currentSlug && 'current']} data-read-slug={post.slug}>
+        <a href={postHref(post.slug)} class="series-link" aria-current={post.slug === currentSlug ? 'page' : undefined}>
           <span class="series-num">{String(i + 1).padStart(2, '0')}</span>
           <span class="series-post-title">{post.data.title}</span>
         </a>
@@ -150,6 +151,10 @@ const postHref = (slug: string) => subsection
   .series-item.current .series-num {
     color: var(--accent);
   }
+
+  /* Post ya leído (ver src/scripts/readState.ts) */
+  .series-item:global(.is-read) .series-num { color: #27c93f; }
+  .series-item:global(.is-read) .series-num::after { content: '✓'; margin-left: 2px; }
 
   .series-item.current .series-post-title {
     color: var(--text-bright);

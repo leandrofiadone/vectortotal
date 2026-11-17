@@ -5,6 +5,25 @@ import sitemap from '@astrojs/sitemap';
 import expressiveCode from 'astro-expressive-code';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { readdirSync, readFileSync } from 'node:fs';
+
+// Rutas que solo redirigen: no van al sitemap.
+// - /posts/*, /notas, /writeups → URLs viejas
+// - /salas/<serie>/<slug> de posts con subsección → redirigen a /salas/<serie>/<subsección>/<slug>
+const redirectOnly = new Set();
+for (const file of readdirSync('./src/content/posts')) {
+  if (!/\.mdx?$/.test(file)) continue;
+  const fm = readFileSync(`./src/content/posts/${file}`, 'utf8').split(/^---\s*$/m)[1] ?? '';
+  const series = fm.match(/^series:\s*["']?([^"'\r\n]+)["']?\s*$/m)?.[1]?.trim();
+  const hasSubsection = /^subsection:\s*\S/m.test(fm);
+  if (series && hasSubsection) redirectOnly.add(`/salas/${series}/${file.replace(/\.mdx?$/, '')}/`);
+}
+
+const inSitemap = (page) => {
+  const { pathname } = new URL(page);
+  if (/^\/(posts|notas|writeups)(\/|$)/.test(pathname)) return false;
+  return !redirectOnly.has(pathname.endsWith('/') ? pathname : `${pathname}/`);
+};
 
 export default defineConfig({
   site: 'https://0xleandro-blog.vercel.app',
@@ -30,7 +49,7 @@ export default defineConfig({
       },
     }),
     mdx(),
-    sitemap(),
+    sitemap({ filter: inSitemap }),
   ],
   markdown: {
     remarkPlugins: [remarkMath],

@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../../../layouts/BaseLayout.astro';
 import PostCard from '../../../../components/PostCard.astro';
-import { getCollection } from 'astro:content';
+import { getPublishedPosts, byReadingOrder } from '../../../../utils/posts';
 import { SERIES } from '../../../../data/series';
 import { toSlug } from '../../../../utils/slug';
 import { readingTime } from '../../../../utils/readingTime';
@@ -11,7 +11,7 @@ import { readingTime } from '../../../../utils/readingTime';
 export async function getStaticPaths() {
 
 
-  const allPosts = await getCollection('posts', p => !p.data.draft && !!p.data.subsection);
+  const allPosts = (await getPublishedPosts()).filter(p => p.data.series && p.data.subsection);
   const paths = new Map<string, { series: string; subsection: string; label: string }>();
 
   for (const post of allPosts) {
@@ -34,14 +34,14 @@ const { series: seriesKey, subsection: subsectionSlug } = Astro.params;
 const { label } = Astro.props;
 const meta = SERIES[seriesKey];
 
-const posts = (await getCollection('posts'))
-  .filter(p => !p.data.draft && p.data.series === seriesKey && p.data.subsection && toSlug(p.data.subsection) === subsectionSlug)
-  .sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+const posts = (await getPublishedPosts())
+  .filter(p => p.data.series === seriesKey && p.data.subsection && toSlug(p.data.subsection) === subsectionSlug)
+  .sort(byReadingOrder);
 ---
 
 <BaseLayout
   title={`${label} — ${meta?.title ?? seriesKey}`}
-  description={`Notas de ${label}`}
+  description={`${label}: ${posts.length} ${posts.length === 1 ? 'nota' : 'notas'} del área ${meta?.title ?? seriesKey} en vectortotal.`}
   bodyClass="pattern-grid"
 >
   <div class="container page-wrap">

@@ -6,6 +6,8 @@ const navLinks = [
 ];
 
 const currentPath = Astro.url.pathname;
+const isActive = (href: string) =>
+  currentPath === href || (href !== '/' && (currentPath === `${href}/` || currentPath.startsWith(`${href}/`)));
 ---
 
 <header class="site-header" transition:animate="none">
@@ -15,11 +17,12 @@ const currentPath = Astro.url.pathname;
       <span class="cursor">_</span>
     </a>
 
-    <nav class="nav">
+    <nav class="nav" id="siteNav" aria-label="Principal">
       {navLinks.map(link => (
         <a
           href={link.href}
-          class:list={['nav-link', { active: currentPath === link.href || (link.href !== '/' && currentPath.startsWith(link.href)) }]}
+          class:list={['nav-link', { active: isActive(link.href) }]}
+          aria-current={isActive(link.href) ? 'page' : undefined}
         >
           {link.label}
         </a>
@@ -27,6 +30,14 @@ const currentPath = Astro.url.pathname;
     </nav>
 
     <div class="header-right">
+      <button type="button" class="search-btn" data-search-open aria-label="Buscar (Ctrl+K)" aria-keyshortcuts="Control+K">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span class="search-btn-label">buscar</span>
+        <kbd class="search-btn-kbd">ctrl k</kbd>
+      </button>
       <a
         href="https://github.com/leandrofiadone"
         target="_blank"
@@ -51,7 +62,7 @@ const currentPath = Astro.url.pathname;
           <line x1="10" y1="14" x2="21" y2="3"/>
         </svg>
       </a>
-      <button class="nav-toggle" aria-label="Menú" id="navToggle">
+      <button type="button" class="nav-toggle" aria-label="Menú" aria-expanded="false" aria-controls="siteNav" id="navToggle">
         <span></span><span></span><span></span>
       </button>
     </div>
@@ -143,6 +154,38 @@ const currentPath = Astro.url.pathname;
     flex-shrink: 0;
   }
 
+  .search-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 10px;
+    margin-right: 6px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+
+  .search-btn:hover {
+    color: var(--text-bright);
+    border-color: rgba(0, 229, 255, 0.35);
+  }
+
+  .search-btn-kbd {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+
   .social-link {
     display: flex;
     align-items: center;
@@ -182,6 +225,11 @@ const currentPath = Astro.url.pathname;
     transition: all 0.2s;
   }
 
+  @media (max-width: 820px) {
+    .search-btn-label, .search-btn-kbd { display: none; }
+    .search-btn { width: 34px; padding: 0; justify-content: center; margin-right: 0; background: none; border-color: transparent; }
+  }
+
   @media (max-width: 640px) {
     .header-inner { gap: 8px; height: 56px; }
     .logo-name { font-size: 0.95rem; }
@@ -215,11 +263,29 @@ const currentPath = Astro.url.pathname;
 </style>
 
 <script>
+  let escController = new AbortController();
+
   document.addEventListener('astro:page-load', () => {
+    // Evita acumular el listener de Escape entre navegaciones
+    escController.abort();
+    escController = new AbortController();
+
     const toggle = document.getElementById('navToggle');
     const nav = document.querySelector('.nav');
-    // Close menu on page navigation
-    nav?.classList.remove('open');
-    toggle?.addEventListener('click', () => nav?.classList.toggle('open'));
+    if (!toggle || !nav) return;
+
+    const setOpen = (open: boolean) => {
+      nav.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+    };
+
+    // Cerrado al llegar a una página nueva
+    setOpen(false);
+    toggle.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
+
+    // Escape cierra el menú mobile
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && nav.classList.contains('open')) { setOpen(false); toggle.focus(); }
+    }, { signal: escController.signal });
   });
 </script>

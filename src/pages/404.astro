@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="404 — No encontrado">
+<BaseLayout title="404 — No encontrado" description="Página no encontrada en vectortotal.">
   <div class="container page-404">
     <div class="terminal-404">
       <div class="terminal-bar">
@@ -15,7 +15,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </div>
       <div class="terminal-accent-line"></div>
       <div class="terminal-body">
-        <div class="t-line"><span class="t-prompt">root@kali:~$</span> <span class="t-text">curl -I vectortotal/{Astro.url.pathname}</span></div>
+        <div class="t-line"><span class="t-prompt">root@kali:~$</span> <span class="t-text">curl -I vectortotal<span id="path404">/ruta</span></span></div>
         <div class="t-line t-error"><span class="t-text">HTTP/1.1 404 Not Found</span></div>
         <div class="t-line t-output"><span class="t-text">La ruta solicitada no existe.</span></div>
         <div class="t-line"><span class="t-prompt">root@kali:~$</span> <span class="t-cursor">▋</span></div>
@@ -27,6 +27,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     <div class="actions-404">
       <a href="/" class="btn-primary">← Volver al inicio</a>
       <a href="/salas" class="btn-secondary">Ver salas</a>
+      <button type="button" class="btn-secondary" data-search-open>Buscar</button>
     </div>
   </div>
 </BaseLayout>
@@ -135,3 +136,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     .actions-404 .btn-secondary { justify-content: center; width: 100%; }
   }
 </style>
+
+<script>
+  // En build la ruta siempre es /404: mostrar la que el usuario pidió de verdad.
+  document.addEventListener('astro:page-load', () => {
+    const el = document.getElementById('path404');
+    if (el) el.textContent = location.pathname;
+  });
+</script>

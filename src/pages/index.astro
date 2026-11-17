@@ -3,14 +3,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import PostCard from '../components/PostCard.astro';
 import Sidebar from '../components/Sidebar.astro';
 import Terminal from '../components/Terminal.astro';
-import { getCollection } from 'astro:content';
 import { SERIES } from '../data/series';
 import { toSlug } from '../utils/slug';
 import { readingTime } from '../utils/readingTime';
+import { getPublishedPosts, byNewest } from '../utils/posts';
 
-const allPosts = (await getCollection('posts'))
-  .filter(p => !p.data.draft)
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const allPosts = (await getPublishedPosts()).sort(byNewest);
 
 
 
@@ -112,6 +110,7 @@ const totalCategories = Object.keys(categoryCounts).length;
             <div class="area-group-header">
               <span class="area-group-icon">{meta?.icon ?? '📚'}</span>
               <a href={`/salas/${seriesKey}`} class="area-group-title">{meta?.title ?? seriesKey}</a>
+              <span class="read-count" data-read-count={posts.map(p => p.slug).join(',')} hidden></span>
               <span class="area-group-count">{posts.length}</span>
             </div>
             <div class="area-group-posts">
@@ -167,20 +166,14 @@ const totalCategories = Object.keys(categoryCounts).length;
     align-items: center;
   }
 
+  /* Sin esto la columna crece al ancho del título y desborda en pantallas chicas */
+  .hero-text { min-width: 0; }
+
   .hero-brand {
     display: flex;
     flex-direction: column;
     gap: 2px;
     margin-bottom: 20px;
-  }
-
-  .hero-kanji {
-    font-family: var(--display);
-    font-size: clamp(1rem, 2vw, 1.4rem);
-    color: var(--text-dim);
-    letter-spacing: 0.35em;
-    font-weight: 400;
-    line-height: 1;
   }
 
   .hero-title {
@@ -274,8 +267,6 @@ const totalCategories = Object.keys(categoryCounts).length;
     gap: 32px;
   }
 
-  .area-group {}
-
   .area-group-header {
     display: flex;
     align-items: center;
@@ -347,12 +338,17 @@ const totalCategories = Object.keys(categoryCounts).length;
     .stats-bar { padding: 14px 0; }
     .stats-inner { gap: 4px; }
     .stat-sep { display: none; }
-    .stat-item { min-width: 50%; flex-basis: 50%; padding: 6px 8px; }
+    .stat-item { min-width: 0; flex: 1 1 calc(50% - 4px); padding: 6px 8px; }
     .stat-val { font-size: 1.2rem; }
     .stat-label { font-size: 0.65rem; }
     .post-list { gap: 24px; }
     .area-group-posts { gap: 8px; }
     .area-group-title { font-size: 0.7rem; }
+  }
+
+  @media (max-width: 480px) {
+    /* "vectortotal" entero en una línea sin cortarse */
+    .hero-title { font-size: clamp(1.7rem, 9.2vw, 2.8rem); }
   }
 
   @media (max-width: 380px) {

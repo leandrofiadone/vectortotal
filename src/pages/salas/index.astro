@@ -1,11 +1,10 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { getCollection } from 'astro:content';
+import { getPublishedPosts, byReadingOrder } from '../../utils/posts';
 import { SERIES } from '../../data/series';
 
-const posts = (await getCollection('posts'))
-  .filter(p => !p.data.draft)
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+// Orden de lectura: la vista previa de cada área muestra por dónde empezar.
+const posts = (await getPublishedPosts()).sort(byReadingOrder);
 
 // Agrupar por serie
 const seriesMap: Record<string, typeof posts> = {};
@@ -67,6 +66,7 @@ const totalPosts = posts.length;
 
               <div class="card-footer">
                 <span class="card-cta">explorar área →</span>
+                <span class="read-count" data-read-count={areaPosts.map(p => p.slug).join(',')} hidden></span>
               </div>
             </div>
           </a>
@@ -239,6 +239,10 @@ const totalPosts = posts.length;
   }
 
   .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     margin-top: auto;
   }
 

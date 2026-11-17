@@ -23,6 +23,36 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+/* Foco visible solo con teclado */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+main:focus { outline: none; }
+
+/* Saltar al contenido (teclado / lectores de pantalla) */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 10000;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--bg);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  border-radius: 3px;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+  color: var(--bg);
 }
 
 ::selection {
@@ -363,6 +393,41 @@ a:hover {
 
 .prose h3 { font-size: 1.15rem; font-weight: 700; color: var(--accent); }
 
+/* Ancla de sección: aparece al pasar por el título, click copia el link */
+.prose .heading-anchor {
+  margin-left: 8px;
+  padding-bottom: 0;
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 0.75em;
+  color: var(--text-dim);
+  -webkit-text-fill-color: var(--text-dim);
+  background: none;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.prose h2:hover .heading-anchor,
+.prose h3:hover .heading-anchor,
+.prose .heading-anchor:focus-visible { opacity: 1; }
+
+.prose .heading-anchor:hover {
+  color: var(--accent);
+  -webkit-text-fill-color: var(--accent);
+  background: none;
+}
+
+.prose .heading-anchor.copied::after {
+  content: ' copiado';
+  font-size: 0.8em;
+  color: #27c93f;
+  -webkit-text-fill-color: #27c93f;
+}
+
+@media (hover: none) {
+  .prose .heading-anchor { opacity: 0.45; }
+}
+
 .prose p { margin-bottom: 1.2em; }
 
 /* Expressive Code overrides */
@@ -620,4 +685,48 @@ a:hover {
 ::view-transition-new(site-logo) {
   animation: none;
   mix-blend-mode: normal;
+}
+
+/* ─── Progreso de lectura (localStorage) ───────────────── */
+.read-count {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: #27c93f;
+  white-space: nowrap;
+}
+
+.read-count[hidden] { display: none; }
+
+/* ─── Movimiento reducido ─────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .glitch::before,
+  .glitch::after { display: none; }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}
+
+/* ─── Impresión: solo el contenido ─────────────────────── */
+@media print {
+  body::before, body::after, .noise-overlay,
+  .site-header, .site-footer, .post-sidebar, .post-nav, .related,
+  .reading-progress, .to-top, .toc-mobile, .skip-link, .breadcrumb { display: none !important; }
+
+  body { background: #fff; color: #111; }
+  .prose, .prose strong { color: #111; }
+  .post-title, .prose h1, .prose h2, .prose h3 {
+    color: #111;
+    background: none;
+    -webkit-text-fill-color: #111;
+  }
+  .prose a { color: #111; text-decoration: underline; }
+  .post-grid { display: block; }
 }

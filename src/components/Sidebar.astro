@@ -66,7 +66,7 @@ const seriesEntries = Object.entries(SERIES);
     <ul class="cat-list">
       {categories.map(([cat, count]) => (
         <li class="cat-item">
-          <a href={`/tags/${cat}`} class="cat-link">
+          <a href={`/tags/${cat.toLowerCase()}`} class="cat-link">
             <span
               class="cat-dot"
               style={`background: ${getTagColor(cat)}`}
@@ -118,8 +118,6 @@ const seriesEntries = Object.entries(SERIES);
     flex-direction: column;
     gap: 4px;
   }
-
-  .series-item {}
 
   .series-link {
     display: flex;

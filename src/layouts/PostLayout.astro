@@ -2,59 +2,64 @@
 import BaseLayout from './BaseLayout.astro';
 import Tag from '../components/Tag.astro';
 import SeriesNav from '../components/SeriesNav.astro';
-import type { CollectionEntry } from 'astro:content';
+import { SERIES } from '../data/series';
+import { toSlug } from '../utils/slug';
+import { readingTime } from '../utils/readingTime';
+import { getPublishedPosts, postUrl, byReadingOrder, relatedPosts, type Post } from '../utils/posts';
 
 interface Props {
-  title: string;
-  date: Date;
-  tags: string[];
-  excerpt: string;
+  post: Post;
   headings?: { depth: number; slug: string; text: string }[];
-  series?: string;
-  subsection?: string;
-  seriesPosts?: CollectionEntry<'posts'>[];
-  currentSlug?: string;
+  seriesPosts?: Post[];
 }
 
-const {
-  title,
-  date,
-  tags,
-  excerpt,
-  headings = [],
-  series,
-  subsection,
-  seriesPosts = [],
-  currentSlug = '',
-} = Astro.props;
+const { post, headings = [], seriesPosts = [] } = Astro.props;
+const { title, date, updated, tags, excerpt, series } = post.data;
+const currentSlug = post.slug;
+const subsectionLabel = post.data.subsection;
+const subsection = subsectionLabel ? toSlug(subsectionLabel) : undefined;
+const seriesMeta = series ? SERIES[series] : undefined;
 
-const formattedDate = date.toLocaleDateString('es-AR', {
-  year: 'numeric', month: 'long', day: 'numeric',
-});
+const fmt = (d: Date) =>
+  d.toLocaleDateString('es-AR', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
 
-const toc = headings.filter(h => h.depth <= 3);
+const minutes = readingTime(post.body);
+// KaTeX CSS solo si el post puede tener fórmulas ($...$)
+const hasMath = post.body.includes('$');
+
+const toc = headings.filter(h => h.depth === 2 || h.depth === 3);
 const hasSidebar = seriesPosts.length > 0 || toc.length > 0;
 
-const sortedSeries = [...seriesPosts].sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+const sortedSeries = [...seriesPosts].sort(byReadingOrder);
 const currentIndex = sortedSeries.findIndex(p => p.slug === currentSlug);
 const prevPost = currentIndex > 0 ? sortedSeries[currentIndex - 1] : null;
-const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIndex + 1] : null;
+const nextPost = currentIndex >= 0 && currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIndex + 1] : null;
 
+const related = relatedPosts(post, await getPublishedPosts());
+
+const breadcrumbs = [
+  { name: 'salas', url: '/salas' },
+  ...(series ? [{ name: seriesMeta?.title ?? series, url: `/salas/${series}` }] : []),
+  ...(series && subsection ? [{ name: subsectionLabel!, url: `/salas/${series}/${subsection}` }] : []),
+  { name: title, url: postUrl(post) },
+];
 ---
 
 <BaseLayout
   title={title}
   description={excerpt}
-  ogImage={currentSlug ? `/og/${currentSlug}.png` : undefined}
+  ogImage={`/og/${currentSlug}.png`}
   bodyClass="pattern-lines"
-  article={{ publishedTime: date.toISOString(), tags }}
+  math={hasMath}
+  breadcrumbs={breadcrumbs}
+  article={{ publishedTime: date.toISOString(), modifiedTime: updated?.toISOString(), tags }}
 >
-  <div class="reading-progress" id="readingProgress"></div>
+  <div class="reading-progress" id="readingProgress" aria-hidden="true"></div>
 
   <div class="container post-container">
     <!-- Breadcrumb -->
-    <nav class="breadcrumb">
-      <span class="bc-item"><a href="/">~</a></span>
+    <nav class="breadcrumb" aria-label="Ruta de navegación">
+      <span class="bc-item"><a href="/" aria-label="inicio">~</a></span>
       <span class="bc-sep">/</span>
       <span class="bc-item"><a href="/salas">salas</a></span>
       {series && (
@@ -70,37 +75,57 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
         </>
       )}
       <span class="bc-sep">/</span>
-      <span class="bc-item bc-current">{currentSlug}</span>
+      <span class="bc-item bc-current" aria-current="page">{currentSlug}</span>
     </nav>
 
     <div class:list={['post-grid', !hasSidebar && 'no-sidebar']}>
-      <article class="post-article">
+      <article class="post-article" data-post-slug={currentSlug}>
         <header class="post-header">
           <h1 class="post-title" transition:name={`post-title-${currentSlug}`}>{title}</h1>
           <div class="post-meta">
-            <span class="meta-date">{formattedDate}</span>
+            <time class="meta-item" datetime={date.toISOString()}>{fmt(date)}</time>
+            <span class="meta-sep">·</span>
+            <span class="meta-item">{minutes} min de lectura</span>
+            {updated && (
+              <>
+                <span class="meta-sep">·</span>
+                <span class="meta-item">actualizado <time datetime={updated.toISOString()}>{fmt(updated)}</time></span>
+              </>
+            )}
           </div>
           <div class="post-tags">
             {tags.map(t => <Tag name={t} />)}
           </div>
-
         </header>
+
+        {toc.length > 0 && (
+          <details class="toc-mobile">
+            <summary>$ índice <span class="toc-mobile-count">{toc.length}</span></summary>
+            <ul class="toc-list">
+              {toc.map(h => (
+                <li class:list={['toc-item', `toc-h${h.depth}`]}>
+                  <a href={`#${h.slug}`} class="toc-link">{h.text}</a>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <div class="prose">
           <slot />
         </div>
 
-        {(prevPost || nextPost) && series && (
-          <nav class="post-nav">
+        {(prevPost || nextPost) && (
+          <nav class="post-nav" aria-label="Posts de la serie">
             <div class="post-nav-inner">
               {prevPost ? (
-                <a href={subsection ? `/salas/${series}/${subsection}/${prevPost.slug}` : `/salas/${series}/${prevPost.slug}`} class="post-nav-link prev">
+                <a href={postUrl(prevPost)} class="post-nav-link prev" rel="prev">
                   <span class="nav-dir">← anterior</span>
                   <span class="nav-title">{prevPost.data.title}</span>
                 </a>
               ) : <div />}
               {nextPost ? (
-                <a href={subsection ? `/salas/${series}/${subsection}/${nextPost.slug}` : `/salas/${series}/${nextPost.slug}`} class="post-nav-link next">
+                <a href={postUrl(nextPost)} class="post-nav-link next" rel="next">
                   <span class="nav-dir">siguiente →</span>
                   <span class="nav-title">{nextPost.data.title}</span>
                 </a>
@@ -108,16 +133,34 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
             </div>
           </nav>
         )}
+
+        {related.length > 0 && (
+          <section class="related" aria-labelledby="relatedTitle">
+            <h2 class="related-title" id="relatedTitle">// seguir leyendo en otras áreas</h2>
+            <div class="related-grid">
+              {related.map(r => {
+                const meta = SERIES[r.data.series!];
+                return (
+                  <a href={postUrl(r)} class="related-card" data-read-slug={r.slug}>
+                    <span class="related-area">{meta?.icon} {meta?.title ?? r.data.series}</span>
+                    <span class="related-name">{r.data.title}</span>
+                    <span class="related-meta">{readingTime(r.body)} min</span>
+                  </a>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </article>
 
       {hasSidebar && (
         <aside class="post-sidebar">
           {series && seriesPosts.length > 0 && (
-            <SeriesNav series={series} subsection={subsection} posts={seriesPosts} currentSlug={currentSlug} />
+            <SeriesNav series={series} subsection={subsection} posts={sortedSeries} currentSlug={currentSlug} />
           )}
           {toc.length > 0 && (
-            <div class="toc-widget">
-              <h5 class="toc-title">$ índice</h5>
+            <nav class="toc-widget" aria-label="Índice del post">
+              <h2 class="toc-title">$ índice</h2>
               <ul class="toc-list">
                 {toc.map(h => (
                   <li class:list={['toc-item', `toc-h${h.depth}`]}>
@@ -125,12 +168,14 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
                   </li>
                 ))}
               </ul>
-            </div>
+            </nav>
           )}
         </aside>
       )}
     </div>
   </div>
+
+  <button type="button" class="to-top" id="toTop" aria-label="Volver arriba" hidden>↑</button>
 </BaseLayout>
 
 <style>
@@ -193,14 +238,17 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
   }
 
   .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 12px;
-  }
-
-  .meta-date {
     font-family: var(--mono);
     font-size: 0.78rem;
     color: var(--text-dim);
   }
+
+  .meta-sep { opacity: 0.4; }
 
   .post-tags {
     display: flex;
@@ -216,6 +264,9 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
     display: flex;
     flex-direction: column;
     gap: 0;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    scrollbar-width: thin;
   }
 
   .toc-widget {
@@ -228,6 +279,7 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
   .toc-title {
     font-family: var(--mono);
     font-size: 0.72rem;
+    font-weight: 400;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -259,24 +311,65 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
     background: rgba(0, 229, 255, 0.08);
   }
 
+  /* Índice plegable — solo mobile/tablet, arriba del contenido */
+  .toc-mobile {
+    display: none;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 28px;
+  }
+
+  .toc-mobile summary {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 12px 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+  }
+
+  .toc-mobile summary::-webkit-details-marker { display: none; }
+  .toc-mobile summary::after { content: '+'; margin-left: auto; color: var(--accent); }
+  .toc-mobile[open] summary::after { content: '−'; }
+  .toc-mobile[open] summary { border-bottom: 1px solid var(--border); }
+  .toc-mobile .toc-list { padding: 10px 8px 12px; }
+  .toc-mobile .toc-link { padding: 6px 6px; font-size: 0.78rem; }
+
+  .toc-mobile-count {
+    font-size: 0.65rem;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+
   @media (max-width: 900px) {
     .post-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; margin-top: 24px; }
     .post-sidebar {
       position: static;
+      max-height: none;
+      overflow: visible;
       padding-top: 24px;
       border-top: 1px solid var(--border);
     }
+    /* El índice ya está arriba del contenido en mobile */
+    .toc-widget { display: none; }
+    .toc-mobile { display: block; }
   }
 
   @media (max-width: 640px) {
-    .useful-item { grid-template-columns: 110px 1fr 32px; }
     .breadcrumb { font-size: 0.72rem; gap: 4px; padding: 16px 0 0; }
     .post-container { padding-bottom: 60px; }
     .post-header { margin-bottom: 28px; }
     .post-title { margin-bottom: 10px; }
+    .post-meta { font-size: 0.72rem; }
     .post-tags { gap: 5px; margin-bottom: 14px; }
-    .toc-widget { padding: 12px; }
-    .toc-link { font-size: 0.72rem; padding: 4px 6px; }
   }
 
   @media (max-width: 480px) {
@@ -343,43 +436,205 @@ const nextPost = currentIndex < sortedSeries.length - 1 ? sortedSeries[currentIn
 
   .post-nav-link:hover .nav-title { color: var(--accent); }
 
+  /* Relacionados */
+  .related { margin-top: 40px; }
+
+  .related-title {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+
+  .related-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .related-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .related-card:hover {
+    border-color: rgba(0, 229, 255, 0.25);
+    background: var(--bg3);
+  }
+
+  .related-area {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+
+  .related-name {
+    font-family: var(--display);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.3;
+    flex: 1;
+    transition: color 0.2s;
+  }
+
+  .related-card:hover .related-name { color: var(--accent); }
+
+  .related-meta {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text-dim);
+  }
+
+  .related-card:global(.is-read) .related-meta::after {
+    content: ' · ✓ leído';
+    color: #27c93f;
+  }
+
+  /* Volver arriba */
+  .to-top {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 1rem;
+    color: var(--accent);
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    z-index: 90;
+    transition: border-color 0.2s, background 0.2s, opacity 0.2s, transform 0.2s;
+  }
+
+  .to-top[hidden] { display: none; }
+  .to-top:hover { border-color: var(--accent); background: var(--bg3); transform: translateY(-2px); }
+
   @media (max-width: 640px) {
     .post-nav-inner { grid-template-columns: 1fr; }
     .post-nav-link { padding: 14px; }
     .post-nav-link.next { text-align: left; }
+    .to-top { right: 14px; bottom: 14px; width: 38px; height: 38px; }
   }
 </style>
 
 <script>
-  document.addEventListener('astro:page-load', () => {
-    /* ── Reading progress bar ── */
-    const bar = document.getElementById('readingProgress');
-    if (bar) {
-      const onScroll = () => {
-        const doc = document.documentElement;
-        const pct = doc.scrollHeight > doc.clientHeight
-          ? (doc.scrollTop / (doc.scrollHeight - doc.clientHeight)) * 100
-          : 0;
-        bar.style.width = `${pct}%`;
-      };
-      window.addEventListener('scroll', onScroll, { passive: true });
-      onScroll();
-    }
+  import { markRead } from '../scripts/readState';
 
-    /* ── TOC active section tracking ── */
-    const tocLinks = document.querySelectorAll('.toc-link');
+  // Un solo controller por página: al navegar (View Transitions) se abortan
+  // todos los listeners de la página anterior. Antes se acumulaban en window.
+  let controller: AbortController | null = null;
+  let observer: IntersectionObserver | null = null;
+
+  function cleanup() {
+    controller?.abort();
+    controller = null;
+    observer?.disconnect();
+    observer = null;
+  }
+
+  document.addEventListener('astro:before-swap', cleanup);
+
+  document.addEventListener('astro:page-load', () => {
+    cleanup();
+
+    const article = document.querySelector<HTMLElement>('.post-article[data-post-slug]');
+    if (!article) return;
+
+    controller = new AbortController();
+    const { signal } = controller;
+    const slug = article.dataset.postSlug!;
+
+    /* ── Barra de progreso + volver arriba + marcar como leído ── */
+    const bar = document.getElementById('readingProgress');
+    const toTop = document.getElementById('toTop');
+    let ticking = false;
+
+    const update = () => {
+      ticking = false;
+      const doc = document.documentElement;
+      const max = doc.scrollHeight - doc.clientHeight;
+      const pct = max > 0 ? (doc.scrollTop / max) * 100 : 0;
+      if (bar) bar.style.width = `${pct}%`;
+      if (toTop) toTop.hidden = doc.scrollTop < 600;
+
+      // Leído = el final del artículo entró en pantalla
+      const end = article.getBoundingClientRect().bottom;
+      if (end < window.innerHeight + 200) markRead(slug);
+    };
+
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(update);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true, signal });
+    window.addEventListener('resize', onScroll, { passive: true, signal });
+    update();
+
+    toTop?.addEventListener('click', () => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    }, { signal });
+
+    /* ── Anclas en títulos: click copia el link a la sección ── */
+    article.querySelectorAll<HTMLElement>('.prose h2[id], .prose h3[id]').forEach(h => {
+      if (h.querySelector('.heading-anchor')) return;
+      const a = document.createElement('a');
+      a.className = 'heading-anchor';
+      a.href = `#${h.id}`;
+      a.textContent = '#';
+      a.setAttribute('aria-label', `Link a la sección: ${h.textContent?.trim() ?? ''}`);
+      a.addEventListener('click', () => {
+        const url = `${location.origin}${location.pathname}#${h.id}`;
+        navigator.clipboard?.writeText(url).then(() => {
+          a.classList.add('copied');
+          setTimeout(() => a.classList.remove('copied'), 1200);
+        }).catch(() => {});
+      }, { signal });
+      h.appendChild(a);
+    });
+
+    /* ── Índice: resaltar sección activa (desktop y mobile) ── */
+    const tocLinks = document.querySelectorAll<HTMLAnchorElement>('.toc-link');
     if (tocLinks.length > 0) {
-      const headings = document.querySelectorAll('.prose h2[id], .prose h3[id]');
-      const observer = new IntersectionObserver(entries => {
+      const headings = article.querySelectorAll('.prose h2[id], .prose h3[id]');
+      observer = new IntersectionObserver(entries => {
         entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            tocLinks.forEach(l => l.classList.remove('toc-active'));
-            const active = document.querySelector(`.toc-link[href="#${entry.target.id}"]`);
-            if (active) active.classList.add('toc-active');
-          }
+          if (!entry.isIntersecting) return;
+          tocLinks.forEach(l => {
+            const active = l.getAttribute('href') === `#${entry.target.id}`;
+            l.classList.toggle('toc-active', active);
+            if (active) l.setAttribute('aria-current', 'location');
+            else l.removeAttribute('aria-current');
+          });
         });
       }, { rootMargin: '-80px 0px -70% 0px' });
-      headings.forEach(h => observer.observe(h));
+      headings.forEach(h => observer!.observe(h));
     }
+
+    /* ── Índice mobile: cerrar al elegir una sección ── */
+    const tocMobile = document.querySelector<HTMLDetailsElement>('.toc-mobile');
+    tocMobile?.querySelectorAll('.toc-link').forEach(l => {
+      l.addEventListener('click', () => { tocMobile.open = false; }, { signal });
+    });
   });
 </script>

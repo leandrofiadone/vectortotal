@@ -1,49 +1,35 @@
 ---
 import PostLayout from '../../../../layouts/PostLayout.astro';
-import { getCollection, type CollectionEntry } from 'astro:content';
+import { getPublishedPosts, type Post } from '../../../../utils/posts';
 import { toSlug } from '../../../../utils/slug';
 
-
-
 export async function getStaticPaths() {
-
-
-  const posts = await getCollection('posts', p => !p.data.draft && !!p.data.series && !!p.data.subsection);
-  return posts.map(post => ({
-    params: {
-      series: post.data.series!,
-      subsection: toSlug(post.data.subsection!),
-      slug: post.slug,
-    },
-    props: { post },
-  }));
+  const posts = await getPublishedPosts();
+  return posts
+    .filter(p => p.data.series && p.data.subsection)
+    .map(post => ({
+      params: {
+        series: post.data.series!,
+        subsection: toSlug(post.data.subsection!),
+        slug: post.slug,
+      },
+      props: { post },
+    }));
 }
 
 interface Props {
-  post: CollectionEntry<'posts'>;
+  post: Post;
 }
 
 const { post } = Astro.props;
-const { series: seriesKey, subsection: subsectionSlug } = Astro.params;
 const { Content, headings } = await post.render();
 
-const allPosts = await getCollection('posts', p => !p.data.draft);
 // SeriesNav solo muestra posts de la misma subsección
-const seriesPosts = allPosts.filter(
+const seriesPosts = (await getPublishedPosts()).filter(
   p => p.data.series === post.data.series && p.data.subsection === post.data.subsection
 );
 ---
 
-<PostLayout
-  title={post.data.title}
-  date={post.data.date}
-  tags={post.data.tags}
-  excerpt={post.data.excerpt}
-  headings={headings}
-  series={seriesKey}
-  subsection={subsectionSlug}
-  seriesPosts={seriesPosts}
-  currentSlug={post.slug}
->
+<PostLayout post={post} headings={headings} seriesPosts={seriesPosts}>
   <Content />
 </PostLayout>

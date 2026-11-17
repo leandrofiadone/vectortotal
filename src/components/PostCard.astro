@@ -32,6 +32,8 @@ const formattedDate = date.toLocaleDateString('es-AR', {
   year: 'numeric',
   month: 'short',
   day: '2-digit',
+  // Las fechas del frontmatter son UTC: sin esto, en UTC-3 se mostraba el día anterior.
+  timeZone: 'UTC',
 });
 
 const numStr = String(num).padStart(2, '0');
@@ -42,7 +44,7 @@ const subsectionLabel = subsection
   : null;
 ---
 
-<a href={href} class="post-card">
+<a href={href} class="post-card" data-read-slug={slug}>
   <span class="post-num">#{numStr}</span>
   <div class="post-body">
     {subsectionLabel && (
@@ -59,7 +61,7 @@ const subsectionLabel = subsection
         {diff && <span class:list={['diff-badge', diff.cls]}>{diff.label}</span>}
       </div>
       <div class="post-meta">
-        <span class="post-date">{formattedDate}</span>
+        <time class="post-date" datetime={date.toISOString()}>{formattedDate}</time>
         {readingTime && (
           <>
             <span class="meta-sep">·</span>
@@ -115,6 +117,10 @@ const subsectionLabel = subsection
     align-self: start;
     padding-top: 2px;
   }
+
+  /* Post ya leído (ver src/scripts/readState.ts) */
+  .post-card:global(.is-read) .post-num { color: #27c93f; }
+  .post-card:global(.is-read) .post-num::after { content: '✓'; display: block; margin-top: 2px; }
 
   .post-body {
     min-width: 0;

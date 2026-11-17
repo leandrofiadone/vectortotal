@@ -24,7 +24,7 @@ import HashChallenge from '../../components/HashChallenge.astro';
 
 Bajaste una ISO de 6 GB. Tardó una hora. ¿Cómo sabés que el archivo que tenés es idéntico al que publicó el desarrollador — sin corrupción, sin manipulación? No vas a comparar los 6 GB byte a byte. Lo que hacés es comparar dos strings de 64 caracteres: el hash publicado en la web y el que vos calculás sobre tu descarga. Si coinciden, el archivo es el mismo. Si difieren en un solo carácter, algo cambió.
 
-Ese mecanismo — reducir cualquier cantidad de datos a una huella fija e irrepetible — es **hashing**. Apareció varias veces en los dos posts anteriores sin definición formal: en las [firmas digitales](/salas/crypto/criptografia-asimetrica) (se firma el hash, no el documento entero), en [John the Ripper](/salas/crypto/criptografia-asimetrica) (ataca hashes, no contraseñas), en los [certificados TLS](/salas/crypto/ssh-gpg-confianza-digital) (la cadena usa hashes para verificar cada eslabón). Ahora le toca su propio post.
+Ese mecanismo — reducir cualquier cantidad de datos a una huella fija e irrepetible — es **hashing**. Apareció varias veces en los dos posts anteriores sin definición formal: en las [firmas digitales](/salas/crypto/criptografia-asimetrica) (se firma el hash, no el documento entero), en [John the Ripper](/salas/crypto/john-the-ripper) (ataca hashes, no contraseñas), en los [certificados TLS](/salas/crypto/ssh-gpg-confianza-digital) (la cadena usa hashes para verificar cada eslabón). Ahora le toca su propio post.
 
 ---
 

@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { getCollection } from 'astro:content';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
@@ -19,31 +21,15 @@ export async function getStaticPaths() {
   }));
 }
 
-// Cache fonts across static path generations so we only fetch once per build.
-const fontCache = new Map<string, ArrayBuffer>();
+// Fuentes locales (TTF) — sin red en build. Antes se bajaban de Google Fonts,
+// que ahora responde WOFF2 y satori no lo soporta.
+const fontCache = new Map<string, Buffer>();
 
-async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuffer> {
-  const key = `${family}-${weight}`;
-  const cached = fontCache.get(key);
+async function loadFont(file: string): Promise<Buffer> {
+  const cached = fontCache.get(file);
   if (cached) return cached;
-
-  // Google Fonts legacy API returns TTF for older User-Agents. Font names use '+' for spaces.
-  const familySlug = family.replace(/ /g, '+');
-  const url = `https://fonts.googleapis.com/css?family=${familySlug}:${weight}`;
-  const css = await fetch(url, {
-    headers: {
-      'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36',
-    },
-  }).then(r => r.text());
-
-  const match = css.match(/src:\s*url\(([^)]+)\)/);
-  if (!match) {
-    throw new Error(`Could not find font URL for ${family} ${weight}. CSS response: ${css.slice(0, 200)}`);
-  }
-
-  const buffer = await fetch(match[1]).then(r => r.arrayBuffer());
-  fontCache.set(key, buffer);
+  const buffer = await readFile(join(process.cwd(), 'src/assets/fonts', file));
+  fontCache.set(file, buffer);
   return buffer;
 }
 
@@ -66,8 +52,8 @@ export const GET: APIRoute = async ({ props }) => {
   };
 
   const [syne, mono] = await Promise.all([
-    loadGoogleFont('Syne', 800),
-    loadGoogleFont('Share+Tech+Mono', 400),
+    loadFont('Syne-ExtraBold.ttf'),
+    loadFont('ShareTechMono-Regular.ttf'),
   ]);
 
   const formattedDate = new Date(date).toLocaleDateString('es-AR', {
